@@ -1,0 +1,81 @@
+@import "tailwindcss";
+
+/* Use .dark class on <html> instead of prefers-color-scheme media query */
+@variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-display: 'Inter', system-ui, sans-serif;
+
+  --color-brand: #2563EB;
+  --color-brand-light: #EFF6FF;
+  --color-brand-dark: #1D4ED8;
+  --color-accent: #EA580C;
+  --color-accent-light: #FFF7ED;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    color-scheme: light;
+  }
+  html.dark {
+    color-scheme: dark;
+  }
+
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    background-color: #F8FAFC;
+    color: #0F172A;
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+  html.dark body {
+    background-color: #0F172A;
+    color: #F1F5F9;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Inter', system-ui, sans-serif;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+  }
+
+  #root { min-height: 100vh; }
+}
+
+@layer utilities {
+  .font-display { font-family: 'Inter', system-ui, sans-serif; }
+
+  /* Dark mode surfaces */
+  .surface {
+    background-color: #ffffff;
+    color: #0F172A;
+  }
+  html.dark .surface {
+    background-color: #1E293B;
+    color: #F1F5F9;
+  }
+
+  .surface-muted {
+    background-color: #F8FAFC;
+  }
+  html.dark .surface-muted {
+    background-color: #0F172A;
+  }
+
+  .border-default {
+    border-color: #E2E8F0;
+  }
+  html.dark .border-default {
+    border-color: #334155;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
