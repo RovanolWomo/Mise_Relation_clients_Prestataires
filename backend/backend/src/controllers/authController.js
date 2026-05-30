@@ -2,6 +2,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const prisma = require('../lib/prisma');
 const { uploadToCloudinary } = require('../utils/cloudinary');
+const { sendMail } = require('../utils/mailer');
 
 const generateToken = (user) =>
   jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '7d' });
@@ -173,6 +174,38 @@ const registerPrestataire = async (req, res) => {
         verified: false,
         statut: 'EN_ATTENTE_VERIFICATION',
       },
+    });
+
+    // Sauvegarder les documents KYC
+    const docFields = ['photoProfil', 'cniRecto', 'cniVerso', 'justif', 'diplome', 'attestation'];
+    for (const field of docFields) {
+      const file = req.files?.[field]?.[0];
+      if (file) {
+        try {
+          const result = await uploadToCloudinary(file.buffer, {
+            folder: 'relconnect/kyc',
+            resource_type: file.mimetype === 'application/pdf' ? 'raw' : 'image',
+          });
+          await prisma.kycDocument.create({
+            data: {
+              type: field,
+              url: result.secure_url,
+              publicId: result.public_id,
+              mimeType: file.mimetype,
+              userId: user.id,
+            },
+          });
+        } catch (uploadErr) {
+          console.warn(`KYC doc ${field} upload failed:`, uploadErr.message);
+        }
+      }
+    }
+
+    // Email de confirmation
+    await sendMail({
+      to: user.email,
+      subject: 'Bienvenue sur Prestolink — Dossier reçu',
+      html: `<h2>Bonjour ${user.prenom} !</h2><p>Votre dossier prestataire a bien été reçu. Notre équipe va l'examiner dans les plus brefs délais.</p><p>Vous recevrez un email dès que votre compte sera approuvé.</p><p>— L'équipe Prestolink</p>`,
     });
 
     const token = generateToken(user);

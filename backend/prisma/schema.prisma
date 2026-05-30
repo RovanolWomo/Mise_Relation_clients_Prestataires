@@ -55,6 +55,7 @@ model User {
   reviews         Review[]       @relation("ReviewAuthor")
   receivedReviews Review[]       @relation("ReviewTarget")
   notifications   Notification[]
+  kycDocuments    KycDocument[]
 }
 
 model Category {
@@ -82,6 +83,7 @@ model Service {
   category      Category @relation(fields: [categoryId], references: [id])
 
   reviews       Review[]
+  featured      Boolean  @default(false)
 }
 
 model Request {
@@ -131,4 +133,26 @@ model Notification {
 
   userId Int
   user   User @relation(fields: [userId], references: [id])
+}
+
+model KycDocument {
+  id        Int      @id @default(autoincrement())
+  type      String
+  url       String
+  publicId  String?
+  mimeType  String?
+  createdAt DateTime @default(now())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model PaymentConfig {
+  id          Int      @id @default(autoincrement())
+  provider    String   @unique
+  enabled     Boolean  @default(false)
+  merchantId  String?
+  apiKey      String?
+  webhookUrl  String?
+  config      String?
+  updatedAt   DateTime @updatedAt
 }

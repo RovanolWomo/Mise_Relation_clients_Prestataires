@@ -1,476 +1,606 @@
-import { useState } from 'react'
-import { Users, Briefcase, BarChart2, ShieldAlert, CheckCircle, XCircle, Eye, TrendingUp, AlertTriangle, FileCheck, Settings, X, Download, ZoomIn } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import {
+  Users, Briefcase, FileCheck, CheckCircle, XCircle, Eye,
+  Plus, Trash2, Star, CreditCard, LayoutDashboard,
+  UserPlus, Tag, TrendingUp,
+  X, ZoomIn, ToggleLeft, ToggleRight, Search,
+  RefreshCw, Package
+} from 'lucide-react'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import type { SidebarItem } from '@/components/layout/DashboardLayout'
 import { Button } from '@/components/ui/Button'
-import { Badge } from '@/components/ui/Badge'
 import { Modal } from '@/components/ui/Modal'
-import { formatPrice } from '@/lib/utils'
-import { cn } from '@/lib/utils'
+import { cn, formatPrice } from '@/lib/utils'
+import { api } from '@/services/api'
+import { useAuth } from '@/context/AuthContext'
 
-const currentUser = { prenom: 'Admin', role: 'admin', avatar: 'AD' }
+// ---- Types ----
+interface Stats { totalUsers: number; totalPrestataires: number; pendingKyc: number; totalRequests: number; totalServices: number; activeRequests: number }
+interface UserRow { id: number; nom: string; prenom: string; email: string; telephone?: string; role: string; statut: string; verified: boolean; categorie?: string; createdAt: string }
+interface KycDossier extends UserRow { bio?: string; experience?: string; tarif?: number; zone?: string; kycDocuments?: { id: number; type: string; url: string; mimeType?: string }[] }
+interface Category { id: number; nom: string; description?: string; icone?: string; _count?: { services: number } }
+interface ServiceRow { id: number; titre: string; prix: number; featured: boolean; disponibilite: boolean; prestataire: { nom: string; prenom: string }; category: { nom: string }; _count?: { reviews: number } }
+interface RequestRow { id: number; titre: string; categorie?: string; statut: string; localisation?: string; createdAt: string; particulier: { nom: string; prenom: string }; prestataire?: { nom: string; prenom: string } }
+interface PayConfig { id?: number; provider: string; enabled: boolean; merchantId?: string; apiKey?: string; webhookUrl?: string }
 
-const cardStats = [
-  { label: 'Utilisateurs',         value: '1 540',              icon: Users,       color: 'bg-orange-50 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400',  delta: '+12 cette semaine' },
-  { label: 'Prestataires actifs',  value: '340',                icon: Briefcase,   color: 'bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400',       delta: '+5 ce mois'        },
-  { label: 'CA ce mois',           value: formatPrice(4800000), icon: BarChart2,   color: 'bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400',       delta: '+18%'              },
-  { label: 'Signalements',         value: '7',                  icon: ShieldAlert, color: 'bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400',               delta: '3 non traités'     },
-]
-
-const recentUsers = [
-  { id: 1, nom: 'Kamga Marie',      email: 'marie@mail.com',      role: 'particulier', statut: 'actif',      date: '27/05/2026' },
-  { id: 2, nom: 'Mbeki Alain',      email: 'alain@mail.com',      role: 'prestataire', statut: 'actif',      date: '26/05/2026' },
-  { id: 3, nom: 'Talla Bertrand',   email: 'bertrand@mail.com',   role: 'prestataire', statut: 'en_attente', date: '25/05/2026' },
-  { id: 4, nom: 'Nkeng Paul',       email: 'paul@mail.com',       role: 'particulier', statut: 'suspendu',   date: '24/05/2026' },
-]
-
-const signalements = [
-  { id: 1, type: 'Avis frauduleux',     utilisateur: 'User #234', cible: 'Prestataire #12', date: '27/05/2026', traite: false },
-  { id: 2, type: 'Compte suspect',      utilisateur: 'User #189', cible: 'Compte #56',      date: '26/05/2026', traite: false },
-  { id: 3, type: 'Paiement litigieux',  utilisateur: 'User #302', cible: 'Paiement #88',    date: '25/05/2026', traite: true  },
-]
-
-type KycStatut = 'en_attente' | 'approuve' | 'rejete'
-type KycDoc = { label: string; type: 'image' | 'pdf'; present: boolean; url?: string }
-type KycDossier = {
-  id: number; nom: string; prenom: string; email: string; telephone: string
-  categorie: string; date: string; experience: string; description: string
-  zone: string; tarif: string
-  docs: KycDoc[]
-  statut: KycStatut
+// ---- Util Badges ----
+const RoleBadge = ({ role }: { role: string }) => {
+  const colors: Record<string, string> = { ADMIN: 'bg-purple-100 text-purple-700', PRESTATAIRE: 'bg-green-100 text-green-700', PARTICULIER: 'bg-orange-100 text-orange-700' }
+  return <span className={cn('px-2 py-0.5 rounded-full text-xs font-semibold', colors[role] || 'bg-slate-100 text-slate-600')}>{role}</span>
+}
+const StatusBadge = ({ statut }: { statut: string }) => {
+  const colors: Record<string, string> = { ACTIF: 'bg-green-100 text-green-700', EN_ATTENTE_VERIFICATION: 'bg-amber-100 text-amber-700', SUSPENDU: 'bg-red-100 text-red-700', BANNI: 'bg-red-200 text-red-800', REJETE: 'bg-slate-100 text-slate-600' }
+  const labels: Record<string, string> = { ACTIF: 'Actif', EN_ATTENTE_VERIFICATION: 'En attente KYC', SUSPENDU: 'Suspendu', BANNI: 'Banni', REJETE: 'Rejeté' }
+  return <span className={cn('px-2 py-0.5 rounded-full text-xs font-semibold', colors[statut] || 'bg-slate-100 text-slate-600')}>{labels[statut] || statut}</span>
 }
 
-const kycDossiers: KycDossier[] = [
-  {
-    id: 1, nom: 'Talla', prenom: 'Bertrand', email: 'bertrand@mail.com', telephone: '+237 670 11 22 33',
-    categorie: 'Plomberie', date: '25/05/2026', experience: '8 ans',
-    description: "Plombier professionnel avec 8 ans d'expérience à Yaoundé. Spécialisé dans la réparation de fuites, l'installation sanitaire et la maintenance des réseaux d'eau.",
-    zone: 'Yaoundé, Mfandena, Nlongkak', tarif: '15 000 FCFA',
-    docs: [
-      { label: 'Photo de profil', type: 'image', present: true,  url: 'https://ui-avatars.com/api/?name=Bertrand+Talla&size=400&background=EA580C&color=fff' },
-      { label: 'CNI Recto',       type: 'image', present: true,  url: 'https://placehold.co/400x250/F8FAFC/94a3b8?text=CNI+Recto' },
-      { label: 'CNI Verso',       type: 'image', present: true,  url: 'https://placehold.co/400x250/F8FAFC/94a3b8?text=CNI+Verso' },
-      { label: 'Justif. domicile', type: 'pdf',  present: false                                                                 },
-      { label: 'Diplôme / Cert.', type: 'pdf',   present: true,  url: 'https://placehold.co/400x300/FFF7ED/EA580C?text=Diplome+CAP+Plomberie' },
-      { label: 'Attestation pro', type: 'pdf',   present: false                                                                 },
-    ],
-    statut: 'en_attente',
-  },
-  {
-    id: 2, nom: 'Fouda', prenom: 'Christian', email: 'fouda@mail.cm', telephone: '+237 699 44 55 66',
-    categorie: 'Électricité', date: '24/05/2026', experience: '12 ans',
-    description: "Électricien certifié avec 12 ans d'expérience dans l'installation électrique domestique et industrielle. Intervention d'urgence disponible 24h/24 sur Douala.",
-    zone: 'Douala, Akwa, Bonanjo', tarif: '20 000 FCFA',
-    docs: [
-      { label: 'Photo de profil', type: 'image', present: true, url: 'https://ui-avatars.com/api/?name=Christian+Fouda&size=400&background=EA580C&color=fff' },
-      { label: 'CNI Recto',       type: 'image', present: true, url: 'https://placehold.co/400x250/F8FAFC/94a3b8?text=CNI+Recto' },
-      { label: 'CNI Verso',       type: 'image', present: true, url: 'https://placehold.co/400x250/F8FAFC/94a3b8?text=CNI+Verso' },
-      { label: 'Justif. domicile', type: 'pdf',  present: true, url: 'https://placehold.co/400x300/F8FAFC/94a3b8?text=Facture+ENEO' },
-      { label: 'Diplôme / Cert.', type: 'pdf',  present: true, url: 'https://placehold.co/400x300/FFF7ED/EA580C?text=BTS+Electrotechnique' },
-      { label: 'Attestation pro', type: 'pdf',  present: true, url: 'https://placehold.co/400x300/FFF7ED/EA580C?text=Attestation+SONEL' },
-    ],
-    statut: 'en_attente',
-  },
-  {
-    id: 3, nom: 'Ngo', prenom: 'Marie', email: 'marie.ngo@mail.cm', telephone: '+237 677 88 99 00',
-    categorie: 'Informatique', date: '22/05/2026', experience: '5 ans',
-    description: "Technicienne en informatique spécialisée dans la maintenance, le dépannage réseau et la cybersécurité. Certifiée CISCO et Microsoft.",
-    zone: 'Yaoundé, Bastos, Ngoa-Ekellé', tarif: '10 000 FCFA',
-    docs: [
-      { label: 'Photo de profil', type: 'image', present: true, url: 'https://ui-avatars.com/api/?name=Marie+Ngo&size=400&background=EA580C&color=fff' },
-      { label: 'CNI Recto',       type: 'image', present: true, url: 'https://placehold.co/400x250/F8FAFC/94a3b8?text=CNI+Recto' },
-      { label: 'CNI Verso',       type: 'image', present: true, url: 'https://placehold.co/400x250/F8FAFC/94a3b8?text=CNI+Verso' },
-      { label: 'Justif. domicile', type: 'pdf',  present: true, url: 'https://placehold.co/400x300/F8FAFC/94a3b8?text=Facture+CAMWATER' },
-      { label: 'Diplôme / Cert.', type: 'pdf',   present: true, url: 'https://placehold.co/400x300/FFF7ED/EA580C?text=Licence+Informatique' },
-      { label: 'Attestation pro', type: 'pdf',   present: true, url: 'https://placehold.co/400x300/FFF7ED/EA580C?text=Cert+CISCO' },
-    ],
-    statut: 'approuve',
-  },
-]
-
-function KycDetailModal({ dossier, onClose }: { dossier: KycDossier; onClose: () => void }) {
-  const [zoomDoc, setZoomDoc] = useState<KycDoc | null>(null)
-
+// ---- KYC Media Viewer ----
+function MediaViewer({ doc }: { doc: { url: string; type: string; mimeType?: string } }) {
+  const isPdf = doc.mimeType === 'application/pdf' || doc.url.includes('.pdf')
+  const [zoom, setZoom] = useState(false)
   return (
-    <>
-      <Modal
-        isOpen
-        onClose={onClose}
-        title={`Dossier KYC — ${dossier.prenom} ${dossier.nom}`}
-        className="max-w-2xl"
-      >
-        <div className="space-y-5">
-          {/* Personal info */}
-          <div className="grid grid-cols-2 gap-3 text-sm">
-            <div><span className="text-slate-400">Nom complet</span><p className="font-semibold text-slate-800 dark:text-slate-200">{dossier.prenom} {dossier.nom}</p></div>
-            <div><span className="text-slate-400">Email</span><p className="font-semibold text-slate-800 dark:text-slate-200">{dossier.email}</p></div>
-            <div><span className="text-slate-400">Téléphone</span><p className="font-semibold text-slate-800 dark:text-slate-200">{dossier.telephone}</p></div>
-            <div><span className="text-slate-400">Domaine</span><p className="font-semibold text-slate-800 dark:text-slate-200">{dossier.categorie}</p></div>
-            <div><span className="text-slate-400">Expérience</span><p className="font-semibold text-slate-800 dark:text-slate-200">{dossier.experience}</p></div>
-            <div><span className="text-slate-400">Tarif minimum</span><p className="font-semibold text-slate-800 dark:text-slate-200">{dossier.tarif}</p></div>
-            <div className="col-span-2"><span className="text-slate-400">Zone</span><p className="font-semibold text-slate-800 dark:text-slate-200">{dossier.zone}</p></div>
-            <div className="col-span-2">
-              <span className="text-slate-400">Description</span>
-              <p className="text-slate-700 dark:text-slate-300 mt-1 text-xs leading-relaxed bg-slate-50 dark:bg-slate-800 p-3 rounded-lg">{dossier.description}</p>
-            </div>
-          </div>
-
-          {/* Documents */}
-          <div>
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">Documents soumis</p>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {dossier.docs.map(doc => (
-                <div key={doc.label} className={cn(
-                  'rounded-xl border overflow-hidden',
-                  doc.present ? 'border-orange-200 dark:border-orange-800' : 'border-slate-200 dark:border-slate-700 opacity-50',
-                )}>
-                  {doc.present && doc.url ? (
-                    <div className="relative group">
-                      <img
-                        src={doc.url}
-                        alt={doc.label}
-                        className="w-full h-24 object-cover bg-slate-100"
-                      />
-                      <button
-                        onClick={() => setZoomDoc(doc)}
-                        className="absolute inset-0 bg-black/0 group-hover:bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
-                      >
-                        <ZoomIn className="w-6 h-6 text-white" />
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="h-24 flex items-center justify-center bg-slate-50 dark:bg-slate-800">
-                      {doc.present
-                        ? <span className="text-2xl">📄</span>
-                        : <XCircle className="w-6 h-6 text-slate-300" />}
-                    </div>
-                  )}
-                  <div className={cn(
-                    'px-2 py-1.5 flex items-center justify-between',
-                    doc.present ? 'bg-orange-50 dark:bg-orange-900/20' : 'bg-slate-50 dark:bg-slate-800',
-                  )}>
-                    <span className="text-[11px] font-medium truncate text-slate-700 dark:text-slate-300">{doc.label}</span>
-                    {doc.present
-                      ? <CheckCircle className="w-3.5 h-3.5 text-green-500 shrink-0" />
-                      : <XCircle className="w-3.5 h-3.5 text-red-400 shrink-0" />}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </Modal>
-
-      {zoomDoc && (
-        <div className="fixed inset-0 z-[9999] bg-black/80 flex items-center justify-center p-4" onClick={() => setZoomDoc(null)}>
-          <button
-            onClick={() => setZoomDoc(null)}
-            className="absolute top-4 right-4 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white cursor-pointer transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
-          <img
-            src={zoomDoc.url}
-            alt={zoomDoc.label}
-            className="max-w-full max-h-full rounded-xl shadow-2xl object-contain"
-            onClick={e => e.stopPropagation()}
-          />
-          <p className="absolute bottom-4 left-1/2 -translate-x-1/2 text-white text-sm font-medium bg-black/50 px-3 py-1 rounded-full">
-            {zoomDoc.label}
-          </p>
+    <div className="space-y-1">
+      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{doc.type}</p>
+      {isPdf ? (
+        <iframe src={doc.url} className="w-full h-40 rounded-lg border border-slate-200 dark:border-slate-700" title={doc.type} />
+      ) : (
+        <div className="relative group">
+          <img src={doc.url} alt={doc.type} className="w-full h-36 object-cover rounded-lg border border-slate-200 dark:border-slate-700 cursor-zoom-in" onClick={() => setZoom(true)} />
+          <button onClick={() => setZoom(true)} className="absolute top-2 right-2 bg-black/50 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"><ZoomIn className="w-3 h-3" /></button>
         </div>
       )}
-    </>
+      {zoom && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4" onClick={() => setZoom(false)}>
+          <img src={doc.url} alt={doc.type} className="max-w-full max-h-full rounded-xl" onClick={e => e.stopPropagation()} />
+          <button className="absolute top-4 right-4 text-white" onClick={() => setZoom(false)}><X className="w-6 h-6" /></button>
+        </div>
+      )}
+    </div>
   )
 }
 
+// ---- Main Component ----
+type Tab = 'overview' | 'users' | 'kyc' | 'register' | 'categories' | 'featured' | 'requests' | 'payments'
+
 export function AdminDashboard() {
-  const [tab, setTab] = useState('overview')
-  const [kycList, setKycList] = useState(kycDossiers)
-  const [viewDossier, setViewDossier] = useState<KycDossier | null>(null)
+  const { user } = useAuth()
+  const [tab, setTab] = useState<Tab>('overview')
 
-  const pendingKyc = kycList.filter(d => d.statut === 'en_attente').length
+  // Data states
+  const [stats, setStats] = useState<Stats | null>(null)
+  const [users, setUsers] = useState<UserRow[]>([])
+  const [kycList, setKycList] = useState<KycDossier[]>([])
+  const [kycDetail, setKycDetail] = useState<KycDossier | null>(null)
+  const [categories, setCategories] = useState<Category[]>([])
+  const [services, setServices] = useState<ServiceRow[]>([])
+  const [requests, setRequests] = useState<RequestRow[]>([])
 
-  function handleKyc(id: number, action: 'approuve' | 'rejete') {
-    setKycList(list => list.map(d => d.id === id ? { ...d, statut: action } : d))
+  // UI states
+  const [kycModalOpen, setKycModalOpen] = useState(false)
+  const [catModalOpen, setCatModalOpen] = useState(false)
+  const [searchUsers, setSearchUsers] = useState('')
+  const [statusFilter, setStatusFilter] = useState('all')
+
+  // Forms
+  const [newCat, setNewCat] = useState({ nom: '', description: '', icone: '' })
+  const [registerForm, setRegisterForm] = useState({ email: '', password: '', nom: '', prenom: '', telephone: '', role: 'PARTICULIER', categorie: '', experience: '', bio: '', tarif: '', zone: '' })
+  const [payForm, setPayForm] = useState<Record<string, Partial<PayConfig>>>({})
+  const [feedbackMsg, setFeedbackMsg] = useState<string | null>(null)
+
+  const feedback = (msg: string) => { setFeedbackMsg(msg); setTimeout(() => setFeedbackMsg(null), 3000) }
+
+  useEffect(() => {
+    if (tab === 'overview') loadStats()
+    else if (tab === 'users') loadUsers()
+    else if (tab === 'kyc') loadKyc()
+    else if (tab === 'categories') loadCategories()
+    else if (tab === 'featured') loadServices()
+    else if (tab === 'requests') loadRequests()
+    else if (tab === 'payments') loadPayments()
+  }, [tab])
+
+  async function loadStats() {
+    try { setStats(await api.get<Stats>('/admin/stats')) } catch (_) {}
+  }
+  async function loadUsers() {
+    try { const d = await api.get<{ users: UserRow[] }>('/admin/users?limit=50'); setUsers(d.users) } catch (_) {}
+  }
+  async function loadKyc() {
+    try { setKycList(await api.get<KycDossier[]>('/admin/kyc/pending')) } catch (_) {}
+  }
+  async function loadKycDetail(id: number) {
+    try {
+      const d = await api.get<KycDossier>(`/admin/kyc/${id}`)
+      setKycDetail(d); setKycModalOpen(true)
+    } catch (_) {}
+  }
+  async function loadCategories() {
+    try { setCategories(await api.get<Category[]>('/admin/categories')) } catch (_) {}
+  }
+  async function loadServices() {
+    try { setServices(await api.get<ServiceRow[]>('/admin/services/featured')) } catch (_) {}
+  }
+  async function loadRequests() {
+    try { const d = await api.get<{ requests: RequestRow[] }>('/admin/requests?limit=50'); setRequests(d.requests) } catch (_) {}
+  }
+  async function loadPayments() {
+    try {
+      const list = await api.get<PayConfig[]>('/admin/payment-config')
+      const map: Record<string, PayConfig> = {}
+      list.forEach(c => { map[c.provider] = c })
+      setPayForm({
+        mtn_momo: map.mtn_momo || { provider: 'mtn_momo', enabled: false },
+        orange_money: map.orange_money || { provider: 'orange_money', enabled: false },
+      })
+    } catch (_) {}
   }
 
+  async function handleVerify(id: number, action: 'approve' | 'reject') {
+    try {
+      await api.patch(`/admin/users/${id}/verify`, { action })
+      feedback(action === 'approve' ? '✅ Prestataire approuvé' : '❌ Prestataire rejeté')
+      setKycModalOpen(false); loadKyc()
+    } catch (e: unknown) { feedback('❌ ' + (e instanceof Error ? e.message : 'Erreur')) }
+  }
+
+  async function handleStatusChange(id: number, statut: string) {
+    try {
+      await api.patch(`/admin/users/${id}/status`, { statut })
+      feedback('✅ Statut mis à jour')
+      loadUsers()
+    } catch (_) {}
+  }
+
+  async function handleCreateCategory() {
+    if (!newCat.nom) return
+    try {
+      await api.post('/admin/categories', newCat)
+      feedback('✅ Catégorie créée')
+      setNewCat({ nom: '', description: '', icone: '' })
+      setCatModalOpen(false); loadCategories()
+    } catch (e: unknown) { feedback('❌ ' + (e instanceof Error ? e.message : 'Erreur')) }
+  }
+
+  async function handleDeleteCategory(id: number) {
+    if (!confirm('Supprimer cette catégorie ?')) return
+    try { await api.delete(`/admin/categories/${id}`); feedback('✅ Supprimée'); loadCategories() } catch (e: unknown) { feedback('❌ ' + (e instanceof Error ? e.message : 'Erreur')) }
+  }
+
+  async function handleToggleFeatured(id: number, featured: boolean) {
+    try { await api.patch(`/admin/services/${id}/featured`, { featured: !featured }); loadServices() } catch (_) {}
+  }
+
+  async function handleRegisterUser() {
+    try {
+      await api.post('/admin/users/register', registerForm)
+      feedback('✅ Utilisateur créé')
+      setRegisterForm({ email: '', password: '', nom: '', prenom: '', telephone: '', role: 'PARTICULIER', categorie: '', experience: '', bio: '', tarif: '', zone: '' })
+    } catch (e: unknown) { feedback('❌ ' + (e instanceof Error ? e.message : 'Erreur')) }
+  }
+
+  async function handleSavePayment(provider: string) {
+    try {
+      await api.put(`/admin/payment-config/${provider}`, payForm[provider])
+      feedback('✅ Configuration sauvegardée'); loadPayments()
+    } catch (e: unknown) { feedback('❌ ' + (e instanceof Error ? e.message : 'Erreur')) }
+  }
+
+  const currentUser = user
+    ? { prenom: user.prenom, role: 'admin', avatar: user.prenom[0] + user.nom[0] }
+    : { prenom: 'Admin', role: 'admin', avatar: 'AD' }
+
+  const inputCls = 'w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm transition-all'
+
   const items: SidebarItem[] = [
-    { icon: BarChart2,   label: "Vue d'ensemble",  onClick: () => setTab('overview'),      active: tab === 'overview'      },
-    { icon: Users,       label: 'Utilisateurs',     onClick: () => setTab('users'),         active: tab === 'users'         },
-    { icon: FileCheck,   label: 'KYC',              onClick: () => setTab('kyc'),           active: tab === 'kyc',           badge: pendingKyc },
-    { icon: ShieldAlert, label: 'Signalements',     onClick: () => setTab('signalements'),  active: tab === 'signalements'  },
+    { icon: LayoutDashboard, label: "Vue d'ensemble",      onClick: () => setTab('overview'),   active: tab === 'overview'    },
+    { icon: Users,           label: 'Utilisateurs',         onClick: () => setTab('users'),      active: tab === 'users'       },
+    { icon: FileCheck,       label: 'KYC / Inscriptions',   onClick: () => setTab('kyc'),        active: tab === 'kyc'         },
+    { icon: UserPlus,        label: 'Inscription manuelle', onClick: () => setTab('register'),   active: tab === 'register'    },
     { separator: true },
-    { icon: Settings, label: 'Paramètres', href: '/admin/parametres' },
+    { icon: Tag,             label: 'Catégories',           onClick: () => setTab('categories'), active: tab === 'categories'  },
+    { icon: Star,            label: 'Services vedette',     onClick: () => setTab('featured'),   active: tab === 'featured'    },
+    { icon: Package,         label: 'Demandes',             onClick: () => setTab('requests'),   active: tab === 'requests'    },
+    { separator: true },
+    { icon: CreditCard,      label: 'Paiements',            onClick: () => setTab('payments'),   active: tab === 'payments'    },
   ]
 
   return (
     <DashboardLayout user={currentUser} items={items}>
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-8">
-          <h1 className="font-display text-2xl font-bold text-slate-900 dark:text-white">Tableau de bord administrateur</h1>
-          <p className="text-slate-500 dark:text-slate-400 text-sm mt-0.5">Supervision de la plateforme Prestolink</p>
-        </div>
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
 
-        {/* Stats */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          {cardStats.map(s => {
-            const Icon = s.icon
-            return (
-              <div key={s.label} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-5">
-                <div className="flex items-center gap-2 mb-3">
-                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${s.color}`}>
-                    <Icon className="w-4 h-4" aria-hidden />
-                  </div>
-                  <TrendingUp className="w-3.5 h-3.5 text-green-500 ml-auto" aria-hidden />
-                </div>
-                <p className="font-display font-bold text-slate-900 dark:text-white text-xl mb-0.5">{s.value}</p>
-                <p className="text-slate-400 dark:text-slate-500 text-xs">{s.label}</p>
-                <p className="text-green-600 dark:text-green-400 text-xs mt-1 font-medium">{s.delta}</p>
-              </div>
-            )
-          })}
-        </div>
+        {/* Feedback toast */}
+        {feedbackMsg && (
+          <div className="fixed top-4 right-4 z-50 px-4 py-3 bg-slate-900 text-white rounded-xl shadow-lg text-sm font-medium">
+            {feedbackMsg}
+          </div>
+        )}
 
-        {/* Overview */}
+        {/* ======== VUE D'ENSEMBLE ======== */}
         {tab === 'overview' && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-6">
-              <h2 className="font-display font-bold text-slate-900 dark:text-white mb-5">Activité récente</h2>
-              <div className="space-y-4">
+          <div>
+            <h1 className="font-display text-2xl font-bold text-slate-900 dark:text-white mb-6">Vue d'ensemble</h1>
+            {stats ? (
+              <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
                 {[
-                  { dot: 'bg-green-400',  action: 'Nouvel utilisateur inscrit',  detail: 'Kamga Marie — Particulier',       time: 'il y a 5 min'  },
-                  { dot: 'bg-orange-400', action: 'Prestataire vérifié',          detail: 'Mbeki Alain — Plomberie',         time: 'il y a 22 min' },
-                  { dot: 'bg-amber-400',  action: 'Paiement traité',              detail: '15 000 FCFA — Intervention #203', time: 'il y a 1h'     },
-                  { dot: 'bg-red-400',    action: 'Avis modéré',                  detail: 'Avis #78 supprimé (fraude)',      time: 'il y a 2h'     },
-                ].map((item, i) => (
-                  <div key={i} className="flex items-start gap-3">
-                    <div className={`w-2 h-2 rounded-full mt-2 shrink-0 ${item.dot}`} aria-hidden />
-                    <div>
-                      <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{item.action}</p>
-                      <p className="text-xs text-slate-400 mt-0.5">{item.detail} &middot; {item.time}</p>
+                  { label: 'Utilisateurs total', value: stats.totalUsers, icon: Users, color: 'text-orange-600 bg-orange-50 dark:bg-orange-900/30' },
+                  { label: 'Prestataires actifs', value: stats.totalPrestataires, icon: Briefcase, color: 'text-green-600 bg-green-50 dark:bg-green-900/30' },
+                  { label: 'KYC en attente', value: stats.pendingKyc, icon: FileCheck, color: 'text-amber-600 bg-amber-50 dark:bg-amber-900/30' },
+                  { label: 'Demandes total', value: stats.totalRequests, icon: Package, color: 'text-blue-600 bg-blue-50 dark:bg-blue-900/30' },
+                  { label: 'Services publiés', value: stats.totalServices, icon: Tag, color: 'text-purple-600 bg-purple-50 dark:bg-purple-900/30' },
+                  { label: 'Demandes actives', value: stats.activeRequests, icon: TrendingUp, color: 'text-cyan-600 bg-cyan-50 dark:bg-cyan-900/30' },
+                ].map(s => (
+                  <div key={s.label} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-5">
+                    <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center mb-3', s.color)}>
+                      <s.icon className="w-5 h-5" />
                     </div>
+                    <p className="text-2xl font-bold text-slate-900 dark:text-white">{s.value}</p>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{s.label}</p>
                   </div>
                 ))}
               </div>
-            </div>
-
-            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-6">
-              <div className="flex items-center justify-between mb-5">
-                <h2 className="font-display font-bold text-slate-900 dark:text-white">Signalements urgents</h2>
-                <Badge variant="error">{signalements.filter(s => !s.traite).length} en attente</Badge>
-              </div>
-              <div className="space-y-3">
-                {signalements.filter(s => !s.traite).map(s => (
-                  <div key={s.id} className="flex items-start gap-3 p-3 bg-red-50 dark:bg-red-900/20 rounded-xl border border-red-100 dark:border-red-800">
-                    <AlertTriangle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" aria-hidden />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-red-800 dark:text-red-400">{s.type}</p>
-                      <p className="text-xs text-red-500 dark:text-red-500 mt-0.5">{s.utilisateur} &middot; {s.cible} &middot; {s.date}</p>
-                    </div>
-                    <Button variant="outline" size="sm" className="shrink-0 text-xs !py-1 !px-2.5">Traiter</Button>
-                  </div>
-                ))}
-              </div>
+            ) : (
+              <div className="text-center py-12 text-slate-400">Chargement des statistiques...</div>
+            )}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <button onClick={() => setTab('kyc')} className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-2xl text-left hover:opacity-90 transition-opacity cursor-pointer">
+                <p className="font-semibold text-amber-800 dark:text-amber-400">Dossiers KYC en attente</p>
+                <p className="text-sm text-amber-600 dark:text-amber-500 mt-1">{stats?.pendingKyc || 0} prestataire(s) à valider</p>
+              </button>
+              <button onClick={() => setTab('register')} className="p-4 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-2xl text-left hover:opacity-90 transition-opacity cursor-pointer">
+                <p className="font-semibold text-orange-800 dark:text-orange-400">Inscription manuelle</p>
+                <p className="text-sm text-orange-600 dark:text-orange-500 mt-1">Créer un compte utilisateur directement</p>
+              </button>
             </div>
           </div>
         )}
 
-        {/* Users */}
+        {/* ======== UTILISATEURS ======== */}
         {tab === 'users' && (
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 overflow-hidden">
-            <div className="p-5 border-b border-slate-50 dark:border-slate-800 flex items-center justify-between">
-              <h2 className="font-display font-bold text-slate-900 dark:text-white">Gestion des utilisateurs</h2>
-              <Badge variant="info">{recentUsers.length} récents</Badge>
+          <div>
+            <div className="flex items-center justify-between mb-6">
+              <h1 className="font-display text-2xl font-bold text-slate-900 dark:text-white">Utilisateurs</h1>
+              <div className="flex gap-2">
+                <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className={cn(inputCls, 'w-44')}>
+                  <option value="all">Tous les statuts</option>
+                  <option value="ACTIF">Actif</option>
+                  <option value="EN_ATTENTE_VERIFICATION">En attente KYC</option>
+                  <option value="SUSPENDU">Suspendu</option>
+                </select>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input value={searchUsers} onChange={e => setSearchUsers(e.target.value)} placeholder="Rechercher..." className={cn(inputCls, 'pl-9 w-48')} />
+                </div>
+              </div>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm" role="table">
-                <thead>
-                  <tr className="bg-slate-50 dark:bg-slate-800">
-                    <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Utilisateur</th>
-                    <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Rôle</th>
-                    <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Statut</th>
-                    <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Date</th>
-                    <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Actions</th>
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 dark:bg-slate-800 border-b border-slate-100 dark:border-slate-700">
+                  <tr>
+                    {['Nom', 'Email', 'Rôle', 'Statut', 'Inscription', 'Actions'].map(h => (
+                      <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">{h}</th>
+                    ))}
                   </tr>
                 </thead>
-                <tbody>
-                  {recentUsers.map(u => (
-                    <tr key={u.id} className="border-t border-slate-50 dark:border-slate-800 hover:bg-orange-50/30 dark:hover:bg-orange-900/10 transition-colors">
-                      <td className="px-5 py-4">
-                        <p className="font-semibold text-slate-800 dark:text-slate-200">{u.nom}</p>
-                        <p className="text-xs text-slate-400">{u.email}</p>
-                      </td>
-                      <td className="px-5 py-4">
-                        <Badge variant={u.role === 'prestataire' ? 'info' : 'default'}>{u.role}</Badge>
-                      </td>
-                      <td className="px-5 py-4">
-                        <Badge variant={u.statut === 'actif' ? 'success' : u.statut === 'en_attente' ? 'warning' : 'error'}>
-                          {u.statut}
-                        </Badge>
-                      </td>
-                      <td className="px-5 py-4 text-slate-500 dark:text-slate-400">{u.date}</td>
-                      <td className="px-5 py-4">
-                        <div className="flex gap-1">
-                          <button className="p-1.5 rounded-lg hover:bg-orange-100 dark:hover:bg-orange-900/40 text-slate-400 hover:text-orange-600 dark:hover:text-orange-400 cursor-pointer transition-colors active:scale-95" aria-label={`Voir ${u.nom}`}>
-                            <Eye className="w-4 h-4" />
-                          </button>
-                          <button className="p-1.5 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/40 text-slate-400 hover:text-green-600 dark:hover:text-green-400 cursor-pointer transition-colors active:scale-95" aria-label={`Valider ${u.nom}`}>
-                            <CheckCircle className="w-4 h-4" />
-                          </button>
-                          <button className="p-1.5 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/40 text-slate-400 hover:text-red-600 dark:hover:text-red-400 cursor-pointer transition-colors active:scale-95" aria-label={`Suspendre ${u.nom}`}>
-                            <XCircle className="w-4 h-4" />
-                          </button>
-                        </div>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {users
+                    .filter(u => statusFilter === 'all' || u.statut === statusFilter)
+                    .filter(u => !searchUsers || `${u.nom} ${u.prenom} ${u.email}`.toLowerCase().includes(searchUsers.toLowerCase()))
+                    .map(u => (
+                    <tr key={u.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                      <td className="px-4 py-3 font-medium text-slate-900 dark:text-white">{u.prenom} {u.nom}</td>
+                      <td className="px-4 py-3 text-slate-500 dark:text-slate-400">{u.email}</td>
+                      <td className="px-4 py-3"><RoleBadge role={u.role} /></td>
+                      <td className="px-4 py-3"><StatusBadge statut={u.statut} /></td>
+                      <td className="px-4 py-3 text-slate-400 text-xs">{new Date(u.createdAt).toLocaleDateString('fr-FR')}</td>
+                      <td className="px-4 py-3">
+                        <select
+                          value={u.statut}
+                          onChange={e => handleStatusChange(u.id, e.target.value)}
+                          className="text-xs px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300"
+                        >
+                          <option value="ACTIF">Actif</option>
+                          <option value="EN_ATTENTE_VERIFICATION">En attente KYC</option>
+                          <option value="SUSPENDU">Suspendu</option>
+                          <option value="BANNI">Banni</option>
+                          <option value="REJETE">Rejeté</option>
+                        </select>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+              {users.length === 0 && <p className="text-center py-8 text-slate-400">Aucun utilisateur</p>}
             </div>
           </div>
         )}
 
-        {/* KYC */}
+        {/* ======== KYC ======== */}
         {tab === 'kyc' && (
-          <div className="flex flex-col gap-4">
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-slate-500 dark:text-slate-400">
-                {pendingKyc} dossier{pendingKyc !== 1 ? 's' : ''} en attente de validation
-              </p>
+          <div>
+            <div className="flex items-center justify-between mb-6">
+              <h1 className="font-display text-2xl font-bold text-slate-900 dark:text-white">Dossiers KYC</h1>
+              <button onClick={loadKyc} className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-orange-600 cursor-pointer transition-colors">
+                <RefreshCw className="w-4 h-4" /> Actualiser
+              </button>
             </div>
-            {kycList.map(d => (
-              <div
-                key={d.id}
-                className={cn(
-                  'bg-white dark:bg-slate-900 rounded-2xl border p-5 transition-all',
-                  d.statut === 'approuve' ? 'border-green-200 dark:border-green-800'
-                    : d.statut === 'rejete' ? 'border-red-200 dark:border-red-800'
-                      : 'border-slate-100 dark:border-slate-800',
-                )}
-              >
-                <div className="flex items-start justify-between gap-4 mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-orange-600 flex items-center justify-center text-white font-bold text-sm shrink-0">
-                      {d.prenom[0]}{d.nom[0]}
+            {kycList.length === 0 ? (
+              <div className="text-center py-16 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800">
+                <CheckCircle className="w-12 h-12 text-green-400 mx-auto mb-3" />
+                <p className="font-semibold text-slate-700 dark:text-slate-300">Aucun dossier en attente</p>
+                <p className="text-sm text-slate-400 mt-1">Tous les prestataires ont été traités</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {kycList.map(k => (
+                  <div key={k.id} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-4 flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center text-orange-600 font-bold text-sm">
+                        {k.prenom[0]}{k.nom[0]}
+                      </div>
+                      <div>
+                        <p className="font-semibold text-slate-900 dark:text-white">{k.prenom} {k.nom}</p>
+                        <p className="text-xs text-slate-500">{k.email} · {k.categorie}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-display font-semibold text-slate-900 dark:text-white">{d.prenom} {d.nom}</p>
-                      <p className="text-xs text-slate-400">{d.categorie} &middot; {d.zone} &middot; Soumis le {d.date}</p>
+                    <div className="flex items-center gap-2 flex-wrap justify-end">
+                      <span className="text-xs text-slate-400">{new Date(k.createdAt).toLocaleDateString('fr-FR')}</span>
+                      <Button variant="outline" size="sm" onClick={() => loadKycDetail(k.id)}>
+                        <Eye className="w-4 h-4" /> Voir
+                      </Button>
+                      <Button variant="primary" size="sm" onClick={() => handleVerify(k.id, 'approve')}>
+                        <CheckCircle className="w-4 h-4" /> Approuver
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => handleVerify(k.id, 'reject')} className="text-red-600 border-red-200 hover:bg-red-50">
+                        <XCircle className="w-4 h-4" /> Rejeter
+                      </Button>
                     </div>
                   </div>
-                  <Badge variant={d.statut === 'approuve' ? 'success' : d.statut === 'rejete' ? 'error' : 'warning'}>
-                    {d.statut === 'approuve' ? 'Approuvé' : d.statut === 'rejete' ? 'Rejeté' : 'En attente'}
-                  </Badge>
-                </div>
+                ))}
+              </div>
+            )}
 
-                {/* Aperçu description */}
-                <p className="text-xs text-slate-500 dark:text-slate-400 mb-4 line-clamp-2 italic">{d.description}</p>
-
-                {/* Documents status grid */}
-                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-4">
-                  {d.docs.map(doc => (
-                    <div
-                      key={doc.label}
-                      className={cn(
-                        'flex flex-col items-center gap-1 px-2 py-2 rounded-lg text-[10px] font-medium text-center',
-                        doc.present ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400'
-                          : 'bg-red-50 dark:bg-red-900/20 text-red-500',
-                      )}
-                    >
-                      {doc.present ? <CheckCircle className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
-                      <span className="leading-tight">{doc.label}</span>
+            {/* KYC Detail Modal */}
+            {kycModalOpen && kycDetail && (
+              <Modal isOpen={kycModalOpen} onClose={() => setKycModalOpen(false)} title={`Dossier — ${kycDetail.prenom} ${kycDetail.nom}`}>
+                <div className="space-y-5 max-h-[70vh] overflow-y-auto">
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div><p className="text-xs text-slate-400">Email</p><p className="font-medium">{kycDetail.email}</p></div>
+                    <div><p className="text-xs text-slate-400">Téléphone</p><p className="font-medium">{kycDetail.telephone || '—'}</p></div>
+                    <div><p className="text-xs text-slate-400">Domaine</p><p className="font-medium">{kycDetail.categorie || '—'}</p></div>
+                    <div><p className="text-xs text-slate-400">Expérience</p><p className="font-medium">{kycDetail.experience ? kycDetail.experience + ' ans' : '—'}</p></div>
+                    <div><p className="text-xs text-slate-400">Tarif min</p><p className="font-medium">{kycDetail.tarif ? formatPrice(kycDetail.tarif) : '—'}</p></div>
+                    <div><p className="text-xs text-slate-400">Zone</p><p className="font-medium">{kycDetail.zone || '—'}</p></div>
+                  </div>
+                  {kycDetail.bio && (
+                    <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl text-sm text-slate-600 dark:text-slate-400">{kycDetail.bio}</div>
+                  )}
+                  {kycDetail.kycDocuments && kycDetail.kycDocuments.length > 0 ? (
+                    <div>
+                      <p className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">Documents soumis ({kycDetail.kycDocuments.length})</p>
+                      <div className="grid grid-cols-2 gap-3">
+                        {kycDetail.kycDocuments.map(doc => (
+                          <MediaViewer key={doc.id} doc={doc} />
+                        ))}
+                      </div>
                     </div>
-                  ))}
-                </div>
-
-                <div className="flex items-center gap-2 flex-wrap">
-                  <button
-                    onClick={() => setViewDossier(d)}
-                    className="flex items-center gap-1.5 px-4 py-2 text-slate-600 dark:text-slate-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 hover:text-orange-700 dark:hover:text-orange-400 border border-slate-200 dark:border-slate-700 text-sm font-medium rounded-xl cursor-pointer transition-colors active:scale-95"
-                  >
-                    <Eye className="w-4 h-4" />
-                    Voir le dossier complet
-                  </button>
-                  <button
-                    onClick={() => {
-                      const a = document.createElement('a')
-                      a.href = '#'
-                      a.download = `dossier_${d.prenom}_${d.nom}.pdf`
-                    }}
-                    className="flex items-center gap-1.5 px-4 py-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 text-sm font-medium rounded-xl cursor-pointer transition-colors active:scale-95"
-                  >
-                    <Download className="w-4 h-4" />
-                    Télécharger
-                  </button>
-                  {d.statut === 'en_attente' && (
-                    <>
-                      <button
-                        onClick={() => handleKyc(d.id, 'approuve')}
-                        className="flex items-center gap-1.5 px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-xl cursor-pointer transition-colors active:scale-95"
-                      >
-                        <CheckCircle className="w-4 h-4" />
-                        Approuver
-                      </button>
-                      <button
-                        onClick={() => handleKyc(d.id, 'rejete')}
-                        className="flex items-center gap-1.5 px-4 py-2 bg-white dark:bg-slate-800 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-700 text-sm font-semibold rounded-xl cursor-pointer transition-colors active:scale-95"
-                      >
-                        <XCircle className="w-4 h-4" />
-                        Rejeter
-                      </button>
-                    </>
+                  ) : (
+                    <p className="text-sm text-slate-400 italic">Aucun document soumis</p>
                   )}
-                  {d.statut !== 'en_attente' && (
-                    <button
-                      onClick={() => setKycList(l => l.map(x => x.id === d.id ? { ...x, statut: 'en_attente' as const } : x))}
-                      className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 text-xs underline cursor-pointer ml-1 transition-colors"
-                    >
-                      Annuler la décision
-                    </button>
-                  )}
+                  <div className="flex gap-3 pt-2 border-t border-slate-100 dark:border-slate-800">
+                    <Button variant="primary" onClick={() => handleVerify(kycDetail.id, 'approve')} className="flex-1">
+                      <CheckCircle className="w-4 h-4" /> Approuver
+                    </Button>
+                    <Button variant="outline" onClick={() => handleVerify(kycDetail.id, 'reject')} className="flex-1 text-red-600 border-red-200">
+                      <XCircle className="w-4 h-4" /> Rejeter
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            ))}
-
-            {kycList.every(d => d.statut !== 'en_attente') && (
-              <div className="bg-green-50 dark:bg-green-900/20 rounded-2xl border border-green-200 dark:border-green-800 p-8 text-center">
-                <CheckCircle className="w-10 h-10 text-green-500 mx-auto mb-3" />
-                <p className="font-semibold text-green-800 dark:text-green-400">Tous les dossiers ont été traités</p>
-              </div>
+              </Modal>
             )}
           </div>
         )}
 
-        {/* Signalements */}
-        {tab === 'signalements' && (
-          <div className="flex flex-col gap-3">
-            {signalements.map(s => (
-              <div key={s.id} className={`bg-white dark:bg-slate-900 rounded-2xl border p-5 flex items-center gap-4 ${s.traite ? 'border-slate-100 dark:border-slate-800' : 'border-red-200 dark:border-red-800'}`}>
-                <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${s.traite ? 'bg-green-100 dark:bg-green-900/30' : 'bg-red-100 dark:bg-red-900/30'}`}>
-                  {s.traite
-                    ? <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-400" />
-                    : <AlertTriangle className="w-4 h-4 text-red-500" />}
+        {/* ======== INSCRIPTION MANUELLE ======== */}
+        {tab === 'register' && (
+          <div>
+            <h1 className="font-display text-2xl font-bold text-slate-900 dark:text-white mb-6">Inscription manuelle</h1>
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-6 max-w-xl">
+              <div className="grid grid-cols-2 gap-4">
+                <div><label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Prénom *</label><input value={registerForm.prenom} onChange={e => setRegisterForm(f => ({...f, prenom: e.target.value}))} className={inputCls} placeholder="Jean-Pierre" /></div>
+                <div><label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Nom *</label><input value={registerForm.nom} onChange={e => setRegisterForm(f => ({...f, nom: e.target.value}))} className={inputCls} placeholder="Atangana" /></div>
+                <div className="col-span-2"><label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Email *</label><input value={registerForm.email} onChange={e => setRegisterForm(f => ({...f, email: e.target.value}))} className={inputCls} type="email" /></div>
+                <div><label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Téléphone</label><input value={registerForm.telephone} onChange={e => setRegisterForm(f => ({...f, telephone: e.target.value}))} className={inputCls} placeholder="+237 6..." /></div>
+                <div><label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Mot de passe</label><input value={registerForm.password} onChange={e => setRegisterForm(f => ({...f, password: e.target.value}))} className={inputCls} type="password" placeholder="Laissez vide = défaut" /></div>
+                <div className="col-span-2">
+                  <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Rôle *</label>
+                  <select value={registerForm.role} onChange={e => setRegisterForm(f => ({...f, role: e.target.value}))} className={inputCls}>
+                    <option value="PARTICULIER">Particulier</option>
+                    <option value="PRESTATAIRE">Prestataire</option>
+                    <option value="ADMIN">Admin</option>
+                  </select>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-display font-semibold text-slate-800 dark:text-slate-200">{s.type}</p>
-                  <p className="text-sm text-slate-400">{s.utilisateur} &middot; {s.cible} &middot; {s.date}</p>
-                </div>
-                {s.traite
-                  ? <Badge variant="success">Traité</Badge>
-                  : (
-                    <div className="flex gap-2 shrink-0">
-                      <Button variant="cta" size="sm">Résoudre</Button>
-                      <Button variant="outline" size="sm">Ignorer</Button>
-                    </div>
-                  )}
+                {registerForm.role === 'PRESTATAIRE' && (
+                  <>
+                    <div><label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Domaine</label><input value={registerForm.categorie} onChange={e => setRegisterForm(f => ({...f, categorie: e.target.value}))} className={inputCls} placeholder="Plomberie" /></div>
+                    <div><label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Exp. (ans)</label><input value={registerForm.experience} onChange={e => setRegisterForm(f => ({...f, experience: e.target.value}))} className={inputCls} type="number" /></div>
+                    <div><label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Tarif min (FCFA)</label><input value={registerForm.tarif} onChange={e => setRegisterForm(f => ({...f, tarif: e.target.value}))} className={inputCls} type="number" /></div>
+                    <div><label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Zone</label><input value={registerForm.zone} onChange={e => setRegisterForm(f => ({...f, zone: e.target.value}))} className={inputCls} /></div>
+                    <div className="col-span-2"><label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Bio</label><textarea value={registerForm.bio} onChange={e => setRegisterForm(f => ({...f, bio: e.target.value}))} className={cn(inputCls, 'resize-none')} rows={3} /></div>
+                  </>
+                )}
               </div>
-            ))}
+              <Button variant="primary" onClick={handleRegisterUser} className="mt-5 w-full">
+                <UserPlus className="w-4 h-4" /> Créer l'utilisateur
+              </Button>
+            </div>
           </div>
         )}
-      </main>
 
-      {viewDossier && <KycDetailModal dossier={viewDossier} onClose={() => setViewDossier(null)} />}
+        {/* ======== CATÉGORIES ======== */}
+        {tab === 'categories' && (
+          <div>
+            <div className="flex items-center justify-between mb-6">
+              <h1 className="font-display text-2xl font-bold text-slate-900 dark:text-white">Catégories & types de services</h1>
+              <Button variant="primary" size="sm" onClick={() => setCatModalOpen(true)}>
+                <Plus className="w-4 h-4" /> Nouvelle catégorie
+              </Button>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {categories.map(c => (
+                <div key={c.id} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-4">
+                  <div className="flex items-start justify-between mb-2">
+                    <div>
+                      <p className="font-semibold text-slate-900 dark:text-white">{c.nom}</p>
+                      <p className="text-xs text-slate-400 mt-0.5">{c.description}</p>
+                    </div>
+                    <button onClick={() => handleDeleteCategory(c.id)} className="text-slate-300 hover:text-red-500 cursor-pointer transition-colors"><Trash2 className="w-4 h-4" /></button>
+                  </div>
+                  <p className="text-sm font-semibold text-orange-600">{c._count?.services || 0} service(s)</p>
+                </div>
+              ))}
+            </div>
+            {categories.length === 0 && <p className="text-center py-8 text-slate-400">Aucune catégorie</p>}
+
+            <Modal
+              isOpen={catModalOpen}
+              onClose={() => setCatModalOpen(false)}
+              title="Nouvelle catégorie"
+              footer={
+                <>
+                  <Button variant="outline" size="sm" onClick={() => setCatModalOpen(false)}>Annuler</Button>
+                  <Button variant="primary" size="sm" onClick={handleCreateCategory}>Créer</Button>
+                </>
+              }
+            >
+              <div className="space-y-3">
+                <div><label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Nom *</label><input value={newCat.nom} onChange={e => setNewCat(f => ({...f, nom: e.target.value}))} className={inputCls} placeholder="Ex: Plomberie" /></div>
+                <div><label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Description</label><input value={newCat.description} onChange={e => setNewCat(f => ({...f, description: e.target.value}))} className={inputCls} placeholder="Description courte" /></div>
+                <div><label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Icône (slug)</label><input value={newCat.icone} onChange={e => setNewCat(f => ({...f, icone: e.target.value}))} className={inputCls} placeholder="Ex: plumbing-icon" /></div>
+              </div>
+            </Modal>
+          </div>
+        )}
+
+        {/* ======== SERVICES VEDETTE ======== */}
+        {tab === 'featured' && (
+          <div>
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h1 className="font-display text-2xl font-bold text-slate-900 dark:text-white">Services vedette</h1>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Activez le statut vedette pour mettre un service en avant</p>
+              </div>
+            </div>
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 dark:bg-slate-800 border-b border-slate-100 dark:border-slate-700">
+                  <tr>
+                    {['Service', 'Prestataire', 'Catégorie', 'Prix', 'Avis', 'Vedette'].map(h => (
+                      <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {services.map(s => (
+                    <tr key={s.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                      <td className="px-4 py-3 font-medium text-slate-900 dark:text-white max-w-[200px] truncate">{s.titre}</td>
+                      <td className="px-4 py-3 text-slate-500">{s.prestataire.prenom} {s.prestataire.nom}</td>
+                      <td className="px-4 py-3"><span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-full text-xs">{s.category.nom}</span></td>
+                      <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{formatPrice(s.prix)}</td>
+                      <td className="px-4 py-3 text-slate-500">{s._count?.reviews || 0}</td>
+                      <td className="px-4 py-3">
+                        <button onClick={() => handleToggleFeatured(s.id, s.featured)} className="cursor-pointer transition-colors">
+                          {s.featured
+                            ? <ToggleRight className="w-8 h-8 text-orange-500" />
+                            : <ToggleLeft className="w-8 h-8 text-slate-300" />
+                          }
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {services.length === 0 && <p className="text-center py-8 text-slate-400">Aucun service</p>}
+            </div>
+          </div>
+        )}
+
+        {/* ======== DEMANDES ======== */}
+        {tab === 'requests' && (
+          <div>
+            <h1 className="font-display text-2xl font-bold text-slate-900 dark:text-white mb-6">Toutes les demandes</h1>
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 dark:bg-slate-800 border-b border-slate-100 dark:border-slate-700">
+                  <tr>
+                    {['Titre', 'Catégorie', 'Client', 'Prestataire', 'Statut', 'Date'].map(h => (
+                      <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {requests.map(r => (
+                    <tr key={r.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                      <td className="px-4 py-3 font-medium text-slate-900 dark:text-white max-w-[180px] truncate">{r.titre}</td>
+                      <td className="px-4 py-3 text-slate-500">{r.categorie || '—'}</td>
+                      <td className="px-4 py-3 text-slate-500">{r.particulier.prenom} {r.particulier.nom}</td>
+                      <td className="px-4 py-3 text-slate-500">{r.prestataire ? `${r.prestataire.prenom} ${r.prestataire.nom}` : <span className="text-amber-500">Non assigné</span>}</td>
+                      <td className="px-4 py-3"><span className={cn('px-2 py-0.5 rounded-full text-xs font-semibold', {
+                        'bg-amber-100 text-amber-700': r.statut === 'EN_ATTENTE',
+                        'bg-orange-100 text-orange-700': r.statut === 'ACCEPTEE' || r.statut === 'EN_COURS',
+                        'bg-green-100 text-green-700': r.statut === 'TERMINEE',
+                        'bg-red-100 text-red-700': r.statut === 'ANNULEE',
+                      })}>{r.statut.replace('_', ' ')}</span></td>
+                      <td className="px-4 py-3 text-slate-400 text-xs">{new Date(r.createdAt).toLocaleDateString('fr-FR')}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {requests.length === 0 && <p className="text-center py-8 text-slate-400">Aucune demande</p>}
+            </div>
+          </div>
+        )}
+
+        {/* ======== PAIEMENTS ======== */}
+        {tab === 'payments' && (
+          <div>
+            <h1 className="font-display text-2xl font-bold text-slate-900 dark:text-white mb-6">Configuration des paiements</h1>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {(['mtn_momo', 'orange_money'] as const).map(provider => {
+                const cfg = payForm[provider] || {}
+                const label = provider === 'mtn_momo' ? 'MTN Mobile Money' : 'Orange Money'
+                const colorClass = provider === 'mtn_momo' ? 'bg-yellow-400' : 'bg-orange-500'
+                const icon = provider === 'mtn_momo' ? '📱' : '🟠'
+                return (
+                  <div key={provider} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-5">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center text-xl', colorClass)}>{icon}</div>
+                      <div className="flex-1">
+                        <p className="font-semibold text-slate-900 dark:text-white">{label}</p>
+                      </div>
+                      <button
+                        onClick={() => setPayForm(f => ({ ...f, [provider]: { ...f[provider], enabled: !f[provider]?.enabled } }))}
+                        className="cursor-pointer"
+                      >
+                        {cfg.enabled
+                          ? <ToggleRight className="w-8 h-8 text-orange-500" />
+                          : <ToggleLeft className="w-8 h-8 text-slate-300" />
+                        }
+                      </button>
+                    </div>
+                    <div className="space-y-3">
+                      <div><label className="block text-xs font-semibold text-slate-500 mb-1">Merchant ID</label><input value={cfg.merchantId || ''} onChange={e => setPayForm(f => ({...f, [provider]: {...f[provider], merchantId: e.target.value}}))} className={inputCls} placeholder="ID marchand" /></div>
+                      <div><label className="block text-xs font-semibold text-slate-500 mb-1">API Key</label><input value={cfg.apiKey || ''} onChange={e => setPayForm(f => ({...f, [provider]: {...f[provider], apiKey: e.target.value}}))} className={inputCls} type="password" placeholder="••••••••" /></div>
+                      <div><label className="block text-xs font-semibold text-slate-500 mb-1">Webhook URL</label><input value={cfg.webhookUrl || ''} onChange={e => setPayForm(f => ({...f, [provider]: {...f[provider], webhookUrl: e.target.value}}))} className={inputCls} placeholder="https://..." /></div>
+                      <Button variant="primary" size="sm" onClick={() => handleSavePayment(provider)} className="w-full">Sauvegarder</Button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+      </main>
     </DashboardLayout>
   )
 }

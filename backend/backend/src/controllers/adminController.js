@@ -1,4 +1,5 @@
 const prisma = require('../lib/prisma');
+const { sendMail } = require('../utils/mailer');
 
 const getStats = async (req, res) => {
   try {
@@ -52,7 +53,7 @@ const getPendingKyc = async (req, res) => {
       select: {
         id: true, nom: true, prenom: true, email: true, telephone: true,
         categorie: true, experience: true, bio: true, zone: true, tarif: true,
-        avatar: true, createdAt: true,
+        avatar: true, createdAt: true, statut: true, verified: true,
       },
       orderBy: { createdAt: 'asc' },
     });
@@ -66,33 +67,22 @@ const verifyPrestataire = async (req, res) => {
   try {
     const { id } = req.params;
     const { action } = req.body;
-
-    if (!['approve', 'reject'].includes(action)) {
-      return res.status(400).json({ error: 'Action invalide (approve ou reject)' });
-    }
-
+    if (!['approve', 'reject'].includes(action)) return res.status(400).json({ error: 'Action invalide' });
     const user = await prisma.user.update({
       where: { id: parseInt(id) },
-      data: {
-        verified: action === 'approve',
-        statut: action === 'approve' ? 'ACTIF' : 'REJETE',
-      },
+      data: { verified: action === 'approve', statut: action === 'approve' ? 'ACTIF' : 'REJETE' }
     });
-
-    await prisma.notification.create({
-      data: {
-        message: action === 'approve'
-          ? 'Votre compte prestataire a été approuvé ! Vous pouvez maintenant publier vos prestations.'
-          : 'Votre dossier KYC n\'a pas pu être validé. Contactez le support pour plus d\'informations.',
-        type: action === 'approve' ? 'SUCCESS' : 'ERROR',
-        userId: parseInt(id),
-      },
+    const msg = action === 'approve'
+      ? 'Votre compte prestataire a été approuvé ! Vous pouvez maintenant publier vos prestations.'
+      : "Votre dossier KYC n'a pas pu être validé. Contactez le support.";
+    await prisma.notification.create({ data: { message: msg, type: action === 'approve' ? 'SUCCESS' : 'ERROR', userId: parseInt(id) } });
+    await sendMail({
+      to: user.email,
+      subject: action === 'approve' ? '✅ Votre compte Prestolink est approuvé !' : '❌ Votre dossier KYC',
+      html: `<h2>${action === 'approve' ? 'Bienvenue sur Prestolink !' : 'Dossier non validé'}</h2><p>${msg}</p>`
     });
-
-    res.json({ message: action === 'approve' ? 'Prestataire approuvé' : 'Prestataire rejeté', user });
-  } catch (error) {
-    res.status(500).json({ error: 'Erreur serveur' });
-  }
+    res.json({ message: action === 'approve' ? 'Approuvé' : 'Rejeté', user });
+  } catch (e) { console.error(e); res.status(500).json({ error: 'Erreur serveur' }); }
 };
 
 const updateUserStatus = async (req, res) => {
@@ -131,4 +121,135 @@ const getAllRequests = async (req, res) => {
   }
 };
 
-module.exports = { getStats, getUsers, getPendingKyc, verifyPrestataire, updateUserStatus, getAllRequests };
+// GET /api/admin/kyc/:id - détail KYC avec documents
+const getKycDetail = async (req, res) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: parseInt(req.params.id) },
+      select: {
+        id: true, nom: true, prenom: true, email: true, telephone: true,
+        categorie: true, experience: true, bio: true, zone: true, tarif: true,
+        avatar: true, statut: true, verified: true, createdAt: true,
+        kycDocuments: true,
+      },
+    });
+    if (!user) return res.status(404).json({ error: 'Introuvable' });
+    res.json(user);
+  } catch (e) { res.status(500).json({ error: 'Erreur serveur' }); }
+};
+
+// POST /api/admin/users/register - inscription manuelle
+const adminRegisterUser = async (req, res) => {
+  const bcrypt = require('bcryptjs');
+  try {
+    const { email, password, nom, prenom, telephone, role, categorie, experience, bio, tarif, zone } = req.body;
+    const existing = await prisma.user.findUnique({ where: { email } });
+    if (existing) return res.status(400).json({ error: 'Email déjà utilisé' });
+    const hashed = await bcrypt.hash(password || 'PrestoDefault@2026', 10);
+    const user = await prisma.user.create({
+      data: {
+        email, password: hashed, nom, prenom, telephone,
+        role: role?.toUpperCase() || 'PARTICULIER',
+        categorie, experience, bio,
+        tarif: tarif ? parseFloat(tarif) : null,
+        zone,
+        verified: role?.toUpperCase() === 'PRESTATAIRE' ? false : true,
+        statut: role?.toUpperCase() === 'PRESTATAIRE' ? 'EN_ATTENTE_VERIFICATION' : 'ACTIF',
+      }
+    });
+    res.status(201).json(user);
+  } catch (e) { console.error(e); res.status(500).json({ error: 'Erreur serveur' }); }
+};
+
+// GET /api/admin/categories
+const adminGetCategories = async (req, res) => {
+  try {
+    const cats = await prisma.category.findMany({
+      include: { _count: { select: { services: true } } },
+      orderBy: { nom: 'asc' }
+    });
+    res.json(cats);
+  } catch (e) { res.status(500).json({ error: 'Erreur serveur' }); }
+};
+
+// POST /api/admin/categories
+const adminCreateCategory = async (req, res) => {
+  try {
+    const { nom, description, icone } = req.body;
+    if (!nom) return res.status(400).json({ error: 'Nom requis' });
+    const cat = await prisma.category.create({ data: { nom, description, icone } });
+    res.status(201).json(cat);
+  } catch (e) {
+    if (e.code === 'P2002') return res.status(400).json({ error: 'Catégorie déjà existante' });
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+};
+
+// PUT /api/admin/categories/:id
+const adminUpdateCategory = async (req, res) => {
+  try {
+    const cat = await prisma.category.update({ where: { id: parseInt(req.params.id) }, data: req.body });
+    res.json(cat);
+  } catch (e) { res.status(500).json({ error: 'Erreur serveur' }); }
+};
+
+// DELETE /api/admin/categories/:id
+const adminDeleteCategory = async (req, res) => {
+  try {
+    await prisma.category.delete({ where: { id: parseInt(req.params.id) } });
+    res.status(204).send();
+  } catch (e) { res.status(500).json({ error: 'Erreur serveur' }); }
+};
+
+// GET /api/admin/services/featured
+const getFeaturedServices = async (req, res) => {
+  try {
+    const services = await prisma.service.findMany({
+      include: {
+        prestataire: { select: { id: true, nom: true, prenom: true, avatar: true } },
+        category: true,
+        reviews: { select: { note: true } },
+        _count: { select: { reviews: true } }
+      },
+      orderBy: [{ featured: 'desc' }, { reviews: { _count: 'desc' } }],
+    });
+    res.json(services);
+  } catch (e) { res.status(500).json({ error: 'Erreur serveur' }); }
+};
+
+// PATCH /api/admin/services/:id/featured
+const toggleFeaturedService = async (req, res) => {
+  try {
+    const { featured } = req.body;
+    const service = await prisma.service.update({ where: { id: parseInt(req.params.id) }, data: { featured } });
+    res.json(service);
+  } catch (e) { res.status(500).json({ error: 'Erreur serveur' }); }
+};
+
+// GET /api/admin/payment-config
+const getPaymentConfig = async (req, res) => {
+  try {
+    const configs = await prisma.paymentConfig.findMany();
+    res.json(configs);
+  } catch (e) { res.status(500).json({ error: 'Erreur serveur' }); }
+};
+
+// PUT /api/admin/payment-config/:provider
+const upsertPaymentConfig = async (req, res) => {
+  try {
+    const { provider } = req.params;
+    const data = req.body;
+    const config = await prisma.paymentConfig.upsert({
+      where: { provider },
+      update: data,
+      create: { provider, ...data }
+    });
+    res.json(config);
+  } catch (e) { res.status(500).json({ error: 'Erreur serveur' }); }
+};
+
+module.exports = {
+  getStats, getUsers, getPendingKyc, verifyPrestataire, updateUserStatus, getAllRequests,
+  getKycDetail, adminRegisterUser, adminGetCategories, adminCreateCategory, adminUpdateCategory,
+  adminDeleteCategory, getFeaturedServices, toggleFeaturedService, getPaymentConfig, upsertPaymentConfig,
+};

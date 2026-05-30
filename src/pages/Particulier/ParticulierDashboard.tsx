@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Search, Plus, Clock, CheckCircle, AlertCircle, CreditCard, Star, Bell, LayoutDashboard, User, Smartphone, Loader2 } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/Button'
@@ -10,12 +10,18 @@ import { formatPrice, formatDate } from '@/lib/utils'
 import { useT } from '@/i18n/I18nContext'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/context/AuthContext'
+import { api } from '@/services/api'
 
-const demandes = [
-  { id: 1, titre: 'Réparation fuite salle de bain', statut: 'en_cours' as const,   montant: 15000, dateIntervention: '2026-05-28', prestataire: 'Alain Mbeki',      categorie: 'Plomberie',    paye: false },
-  { id: 2, titre: 'Installation prise électrique',  statut: 'terminee' as const,   montant: 8000,  dateIntervention: '2026-05-22', prestataire: 'Sandrine Ngo Biya', categorie: 'Électricité', paye: true  },
-  { id: 3, titre: 'Dépannage réseau WiFi',           statut: 'en_attente' as const, montant: 5000,  dateIntervention: '2026-05-30', prestataire: undefined,           categorie: 'Informatique', paye: false },
-]
+interface DemandeItem {
+  id: number
+  titre: string
+  statut: Statut
+  montant?: number
+  dateIntervention?: string
+  prestataire?: string
+  categorie?: string
+  paye?: boolean
+}
 
 const notifications = [
   { id: 1, message: 'Alain Mbeki a accepté votre demande de plomberie', type: 'success' as const, lu: false, createdAt: 'Il y a 30 min' },
@@ -24,6 +30,16 @@ const notifications = [
 ]
 
 type Statut = 'en_attente' | 'en_cours' | 'terminee' | 'annulee' | 'acceptee'
+
+interface ApiRequest {
+  id: number
+  titre: string
+  statut: string
+  montant?: number
+  dateIntervention?: string
+  categorie?: string
+  prestataire?: { nom: string; prenom: string }
+}
 
 const STATUT_COLORS: Record<Statut, string> = {
   en_attente: 'bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-400',
@@ -164,23 +180,42 @@ function PaymentModal({ demande, onClose, onSuccess }: {
 }
 
 export function ParticulierDashboard() {
-  const [tab, setTab] = useState<'demandes' | 'notifs'>('demandes')
+  const [tab, setTab] = useState<'demandes' | 'notifs' | 'services'>('demandes')
   const { t } = useT()
   const { user } = useAuth()
   const navigate = useNavigate()
   const [payTarget, setPayTarget] = useState<PayDemandePayload | null>(null)
-  const [paidIds, setPaidIds] = useState<Set<number>>(new Set([2]))
+  const [paidIds, setPaidIds] = useState<Set<number>>(new Set())
+  const [demandes, setDemandes] = useState<DemandeItem[]>([])
   const unreadCount = notifications.filter(n => !n.lu).length
+
+  useEffect(() => {
+    api.get<ApiRequest[]>('/requests/my').then(data => {
+      const mapped: DemandeItem[] = data.map(r => ({
+        id: r.id,
+        titre: r.titre,
+        statut: (r.statut.toLowerCase() as Statut),
+        montant: r.montant,
+        dateIntervention: r.dateIntervention,
+        categorie: r.categorie,
+        prestataire: r.prestataire ? `${r.prestataire.prenom} ${r.prestataire.nom}` : undefined,
+        paye: false,
+      }))
+      setDemandes(mapped)
+    }).catch(() => {})
+  }, [])
 
   const currentUser = user
     ? { prenom: user.prenom, role: 'particulier', avatar: user.prenom[0] + user.nom[0] }
     : { prenom: 'Invité', role: 'particulier', avatar: 'IN' }
 
+  const activeCount = demandes.filter(d => d.statut === 'en_cours' || d.statut === 'acceptee').length
+  const doneCount = demandes.filter(d => d.statut === 'terminee').length
+
   const cardStats = [
-    { label: t.dashboard.active,        value: 2,                  icon: Clock,       color: 'bg-orange-50 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400' },
-    { label: t.dashboard.done,          value: 7,                  icon: CheckCircle, color: 'bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400'      },
-    { label: t.dashboard.balance,       value: formatPrice(45000), icon: CreditCard,  color: 'bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400'      },
-    { label: t.dashboard.reviews_given, value: 5,                  icon: Star,        color: 'bg-yellow-50 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400'  },
+    { label: t.dashboard.active,        value: activeCount, icon: Clock,       color: 'bg-orange-50 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400' },
+    { label: t.dashboard.done,          value: doneCount,   icon: CheckCircle, color: 'bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400'      },
+    { label: t.dashboard.reviews_given, value: 0,           icon: Star,        color: 'bg-yellow-50 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400'  },
   ]
 
   const items: SidebarItem[] = [
@@ -188,7 +223,7 @@ export function ParticulierDashboard() {
     { icon: Clock,           label: t.dashboard.my_requests,   onClick: () => setTab('demandes'), active: tab === 'demandes' },
     { icon: Bell,            label: t.dashboard.notifications, onClick: () => setTab('notifs'),   active: tab === 'notifs',   badge: unreadCount },
     { separator: true },
-    { icon: Search, label: t.dashboard.find_service, href: '/services' },
+    { icon: Search, label: t.dashboard.find_service, onClick: () => setTab('services'), active: tab === 'services' },
     { icon: Plus,   label: t.dashboard.new_request,  href: '/particulier/nouvelle-demande' },
     { separator: true },
     { icon: User, label: 'Mon profil', href: '/particulier/profil' },
@@ -213,7 +248,7 @@ export function ParticulierDashboard() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
           {cardStats.map(s => {
             const Icon = s.icon
             return (
@@ -284,6 +319,28 @@ export function ParticulierDashboard() {
                 </div>
               )
             })}
+          </div>
+        )}
+
+        {/* Trouver un service */}
+        {tab === 'services' && (
+          <div className="flex flex-col gap-4">
+            <h2 className="font-display font-semibold text-slate-900 dark:text-white text-lg mb-1">Trouver un service</h2>
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-8 text-center">
+              <div className="w-16 h-16 bg-orange-100 dark:bg-orange-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Search className="w-8 h-8 text-orange-600 dark:text-orange-400" />
+              </div>
+              <h3 className="font-display text-xl font-bold text-slate-900 dark:text-white mb-2">Trouvez le bon prestataire</h3>
+              <p className="text-slate-500 dark:text-slate-400 text-sm mb-6 max-w-md mx-auto">
+                Parcourez notre catalogue de prestataires vérifiés, filtrez par catégorie ou zone géographique et trouvez la meilleure offre pour vos besoins.
+              </p>
+              <Link to="/services">
+                <Button variant="primary" size="lg">
+                  <Search className="w-4 h-4" />
+                  Parcourir les services
+                </Button>
+              </Link>
+            </div>
           </div>
         )}
 

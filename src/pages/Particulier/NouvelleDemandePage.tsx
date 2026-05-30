@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { ArrowLeft, CheckCircle, Clock, Bell, Search, Plus, User, LayoutDashboard, MapPin, Loader2, AlertCircle } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
@@ -28,6 +28,7 @@ export function NouvelleDemandePage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [geoLoading, setGeoLoading] = useState(false)
+  const [geoStatus, setGeoStatus] = useState<'idle' | 'loading' | 'detected' | 'error'>('idle')
   const [geoError, setGeoError] = useState<string | null>(null)
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null)
 
@@ -50,9 +51,11 @@ export function NouvelleDemandePage() {
   async function getGeolocation() {
     if (!navigator.geolocation) {
       setGeoError("La géolocalisation n'est pas supportée par votre navigateur.")
+      setGeoStatus('error')
       return
     }
     setGeoLoading(true)
+    setGeoStatus('loading')
     setGeoError(null)
     navigator.geolocation.getCurrentPosition(
       async (position) => {
@@ -78,18 +81,25 @@ export function NouvelleDemandePage() {
           setForm(f => ({ ...f, localisation: `${latitude.toFixed(4)}, ${longitude.toFixed(4)}` }))
         }
         setGeoLoading(false)
+        setGeoStatus('detected')
       },
       (err) => {
         setGeoLoading(false)
+        setGeoStatus('error')
         if (err.code === err.PERMISSION_DENIED) {
           setGeoError("Accès à la localisation refusé. Veuillez autoriser la géolocalisation dans votre navigateur.")
         } else {
-          setGeoError("Impossible de récupérer votre position. Veuillez entrer votre localisation manuellement.")
+          setGeoError("Impossible de récupérer votre position automatiquement.")
         }
       },
       { timeout: 10000, enableHighAccuracy: true },
     )
   }
+
+  // Déclencher GPS automatiquement au montage
+  useEffect(() => {
+    getGeolocation()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -169,40 +179,43 @@ export function NouvelleDemandePage() {
           Retour au tableau de bord
         </Link>
 
-        {/* Géolocalisation banner */}
-        {!coords && (
-          <div className="mb-5 p-4 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl flex items-center justify-between gap-4">
-            <div className="flex items-start gap-3">
-              <MapPin className="w-5 h-5 text-orange-600 shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-semibold text-orange-800 dark:text-orange-400">Activez la géolocalisation</p>
-                <p className="text-xs text-orange-600 dark:text-orange-500 mt-0.5">Nous trierons les prestataires par proximité pour vous trouver la meilleure offre.</p>
-              </div>
+        {/* Géolocalisation status banner */}
+        {geoStatus === 'loading' && (
+          <div className="mb-5 p-4 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl flex items-center gap-3">
+            <Loader2 className="w-5 h-5 text-orange-600 shrink-0 animate-spin" />
+            <div>
+              <p className="text-sm font-semibold text-orange-800 dark:text-orange-400">Détection de votre position...</p>
+              <p className="text-xs text-orange-600 dark:text-orange-500 mt-0.5">Nous trierons les prestataires par proximité.</p>
             </div>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={getGeolocation}
-              disabled={geoLoading}
-              className="shrink-0"
-            >
-              {geoLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <MapPin className="w-4 h-4" />}
-              {geoLoading ? 'Localisation...' : 'Ma position'}
-            </Button>
           </div>
         )}
 
-        {coords && (
+        {geoStatus === 'detected' && coords && (
           <div className="mb-5 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl flex items-center gap-2 text-sm text-green-700 dark:text-green-400">
             <CheckCircle className="w-4 h-4 shrink-0" />
             Position détectée — les prestataires seront triés par proximité
           </div>
         )}
 
-        {geoError && (
-          <div className="mb-5 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl flex items-center gap-2 text-sm text-red-700 dark:text-red-400">
-            <AlertCircle className="w-4 h-4 shrink-0" />
-            {geoError}
+        {geoStatus === 'error' && (
+          <div className="mb-5 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl flex items-center justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-semibold text-red-800 dark:text-red-400">Position non détectée</p>
+                <p className="text-xs text-red-600 dark:text-red-500 mt-0.5">{geoError || "Impossible de récupérer votre position."}</p>
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={getGeolocation}
+              disabled={geoLoading}
+              className="shrink-0 text-red-600 border-red-200"
+            >
+              {geoLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <MapPin className="w-4 h-4" />}
+              Réessayer
+            </Button>
           </div>
         )}
 
@@ -272,25 +285,24 @@ export function NouvelleDemandePage() {
               <div>
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
                   Localisation
-                  {coords && <span className="ml-2 text-xs text-green-600 dark:text-green-400">✓ GPS</span>}
+                  {coords
+                    ? <span className="ml-2 text-xs text-green-600 dark:text-green-400">✓ GPS détecté</span>
+                    : geoStatus === 'loading'
+                      ? <span className="ml-2 text-xs text-orange-500">Détection en cours...</span>
+                      : <span className="ml-2 text-xs text-slate-400">Position non détectée</span>
+                  }
                 </label>
                 <div className="relative">
                   <input
                     type="text"
                     value={form.localisation}
-                    onChange={set('localisation')}
-                    placeholder="Ex: Douala, Bonapriso"
-                    className={cn(inputCls, 'pr-10')}
+                    readOnly
+                    placeholder="Détection GPS automatique..."
+                    className={cn(inputCls, 'pr-10 bg-slate-50 dark:bg-slate-900 cursor-not-allowed', coords ? 'text-green-700 dark:text-green-400' : '')}
                   />
-                  <button
-                    type="button"
-                    onClick={getGeolocation}
-                    disabled={geoLoading}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-orange-600 transition-colors cursor-pointer disabled:opacity-50 active:scale-95"
-                    title="Utiliser ma position GPS"
-                  >
-                    {geoLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <MapPin className="w-4 h-4" />}
-                  </button>
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
+                    {geoStatus === 'loading' ? <Loader2 className="w-4 h-4 animate-spin text-orange-500" /> : <MapPin className={cn('w-4 h-4', coords ? 'text-green-500' : '')} />}
+                  </div>
                 </div>
               </div>
             </div>

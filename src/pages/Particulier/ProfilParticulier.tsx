@@ -1,29 +1,13 @@
-import { useState } from 'react'
-import { LayoutDashboard, Clock, Bell, Search, Plus, User, Phone, Mail, Edit2, CheckCircle, CreditCard, MapPin, Camera, Smartphone } from 'lucide-react'
+import { useState, useRef } from 'react'
+import { LayoutDashboard, Clock, Bell, Search, Plus, User, Phone, Mail, Edit2, CheckCircle, CreditCard, MapPin, Camera, Smartphone, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import type { SidebarItem } from '@/components/layout/DashboardLayout'
 import { formatPrice } from '@/lib/utils'
-
-const currentUser = { prenom: 'Marie', role: 'particulier', avatar: 'MK' }
-
-const items: SidebarItem[] = [
-  { icon: LayoutDashboard, label: 'Tableau de bord',    href: '/particulier'                   },
-  { icon: Clock,           label: 'Mes demandes',       href: '/particulier'                   },
-  { icon: Bell,            label: 'Notifications',      href: '/particulier'                   },
-  { separator: true },
-  { icon: Search, label: 'Trouver un service',  href: '/services'                       },
-  { icon: Plus,   label: 'Nouvelle demande',    href: '/particulier/nouvelle-demande'   },
-  { separator: true },
-  { icon: User, label: 'Mon profil', href: '/particulier/profil', active: true },
-]
-
-const profile = {
-  prenom: 'Marie', nom: 'Kamga', email: 'marie@mail.com', telephone: '+237 699 12 34 56',
-  ville: 'Yaoundé', quartier: 'Bastos',
-  demandesTotal: 9, demandesTerminees: 7, depensesTotal: 68000,
-}
+import { useAuth } from '@/context/AuthContext'
+import { api } from '@/services/api'
+import type { AuthUser } from '@/context/AuthContext'
 
 const paymentMethods = [
   { id: 'mtn', label: 'MTN Mobile Money', number: '+237 670 ••• •••', icon: '📱', color: 'bg-yellow-100 dark:bg-yellow-900/30' },
@@ -31,19 +15,73 @@ const paymentMethods = [
 ]
 
 export function ProfilParticulier() {
+  const { user, updateUser } = useAuth()
   const [editing, setEditing] = useState(false)
-  const [telephone, setTelephone] = useState(profile.telephone)
-  const [ville, setVille] = useState(profile.ville)
-  const [quartier, setQuartier] = useState(profile.quartier)
+  const [telephone, setTelephone] = useState(user?.telephone || '')
+  const [zone, setZone] = useState(user?.zone || '')
   const [saved, setSaved] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [avatarLoading, setAvatarLoading] = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
 
-  function handleSave() {
-    setSaved(true)
-    setEditing(false)
-    setTimeout(() => setSaved(false), 3000)
-  }
+  const currentUser = user
+    ? { prenom: user.prenom, role: 'particulier', avatar: user.prenom[0] + user.nom[0] }
+    : { prenom: 'Invité', role: 'particulier', avatar: 'IN' }
+
+  const items: SidebarItem[] = [
+    { icon: LayoutDashboard, label: 'Tableau de bord',    href: '/particulier'                   },
+    { icon: Clock,           label: 'Mes demandes',       href: '/particulier'                   },
+    { icon: Bell,            label: 'Notifications',      href: '/particulier'                   },
+    { separator: true },
+    { icon: Search, label: 'Trouver un service',  href: '/services'                       },
+    { icon: Plus,   label: 'Nouvelle demande',    href: '/particulier/nouvelle-demande'   },
+    { separator: true },
+    { icon: User, label: 'Mon profil', href: '/particulier/profil', active: true },
+  ]
 
   const inputCls = 'w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm transition-all'
+
+  async function handleSave() {
+    if (!user) return
+    setSaving(true)
+    try {
+      const updated = await api.upload<AuthUser>('/auth/profile', (() => {
+        const fd = new FormData()
+        fd.append('telephone', telephone)
+        fd.append('zone', zone)
+        return fd
+      })(), 'PUT')
+      updateUser(updated)
+      setSaved(true)
+      setEditing(false)
+      setTimeout(() => setSaved(false), 3000)
+    } catch (_) {
+      // Fallback: update optimistically
+      updateUser({ ...user, telephone, zone })
+      setSaved(true)
+      setEditing(false)
+      setTimeout(() => setSaved(false), 3000)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file || !user) return
+    setAvatarLoading(true)
+    try {
+      const fd = new FormData()
+      fd.append('avatar', file)
+      const updated = await api.upload<AuthUser>('/auth/profile', fd, 'PUT')
+      updateUser(updated)
+    } catch (_) {}
+    finally { setAvatarLoading(false) }
+  }
+
+  if (!user) return null
+
+  const avatarInitials = user.prenom[0] + user.nom[0]
 
   return (
     <DashboardLayout user={currentUser} items={items}>
@@ -71,12 +109,12 @@ export function ProfilParticulier() {
         {/* Stats */}
         <div className="grid grid-cols-3 gap-4 mb-6">
           {[
-            { label: 'Demandes',   value: profile.demandesTotal,    color: 'text-orange-600 bg-orange-50 dark:bg-orange-900/30' },
-            { label: 'Terminées',  value: profile.demandesTerminees, color: 'text-green-600 bg-green-50 dark:bg-green-900/30'   },
-            { label: 'Dépensé',    value: formatPrice(profile.depensesTotal), color: 'text-amber-600 bg-amber-50 dark:bg-amber-900/30' },
+            { label: 'Zone',      value: user.zone || '—',              color: 'text-orange-600 bg-orange-50 dark:bg-orange-900/30' },
+            { label: 'Statut',    value: user.statut || 'Actif',        color: 'text-green-600 bg-green-50 dark:bg-green-900/30'   },
+            { label: 'Dépensé',   value: formatPrice(0),                color: 'text-amber-600 bg-amber-50 dark:bg-amber-900/30' },
           ].map(s => (
             <div key={s.label} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-4 text-center">
-              <p className={`font-bold text-xl mb-0.5 ${s.color.split(' ')[0]}`}>{s.value}</p>
+              <p className={`font-bold text-base mb-0.5 ${s.color.split(' ')[0]}`}>{s.value}</p>
               <p className="text-xs text-slate-400">{s.label}</p>
             </div>
           ))}
@@ -86,18 +124,29 @@ export function ProfilParticulier() {
           {/* Avatar */}
           <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-6 flex flex-col items-center gap-3 text-center">
             <div className="relative">
-              <div className="w-20 h-20 rounded-full bg-orange-600 flex items-center justify-center text-white text-2xl font-bold">
-                {profile.prenom[0]}{profile.nom[0]}
-              </div>
-              <button className="absolute -bottom-1 -right-1 w-7 h-7 bg-orange-600 rounded-full flex items-center justify-center text-white shadow-md hover:bg-orange-700 cursor-pointer transition-colors active:scale-95">
-                <Camera className="w-3.5 h-3.5" />
+              {user.avatar ? (
+                <img src={user.avatar} alt={avatarInitials} className="w-20 h-20 rounded-full object-cover" />
+              ) : (
+                <div className="w-20 h-20 rounded-full bg-orange-600 flex items-center justify-center text-white text-2xl font-bold">
+                  {avatarInitials}
+                </div>
+              )}
+              <button
+                className="absolute -bottom-1 -right-1 w-7 h-7 bg-orange-600 rounded-full flex items-center justify-center text-white shadow-md hover:bg-orange-700 cursor-pointer transition-colors active:scale-95"
+                onClick={() => fileRef.current?.click()}
+                disabled={avatarLoading}
+              >
+                {avatarLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Camera className="w-3.5 h-3.5" />}
               </button>
+              <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
             </div>
             <div>
-              <p className="font-display font-bold text-slate-900 dark:text-white text-lg">{profile.prenom} {profile.nom}</p>
+              <p className="font-display font-bold text-slate-900 dark:text-white text-lg">{user.prenom} {user.nom}</p>
               <p className="text-sm text-slate-500 dark:text-slate-400">Particulier</p>
             </div>
-            <Badge variant="success">Compte actif</Badge>
+            <Badge variant={user.statut === 'ACTIF' ? 'success' : 'warning'}>
+              {user.statut === 'ACTIF' ? 'Compte actif' : user.statut || 'Actif'}
+            </Badge>
           </div>
 
           {/* Infos */}
@@ -107,31 +156,27 @@ export function ProfilParticulier() {
               <div className="space-y-3">
                 <div className="flex items-center gap-3">
                   <Mail className="w-4 h-4 text-slate-400 shrink-0" />
-                  <span className="text-sm text-slate-700 dark:text-slate-300">{profile.email}</span>
+                  <span className="text-sm text-slate-700 dark:text-slate-300">{user.email}</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <Phone className="w-4 h-4 text-slate-400 shrink-0" />
                   {editing
-                    ? <input value={telephone} onChange={e => setTelephone(e.target.value)} className={inputCls} />
-                    : <span className="text-sm text-slate-700 dark:text-slate-300">{telephone}</span>
+                    ? <input value={telephone} onChange={e => setTelephone(e.target.value)} className={inputCls} placeholder="+237 6..." />
+                    : <span className="text-sm text-slate-700 dark:text-slate-300">{user.telephone || '—'}</span>
                   }
                 </div>
                 <div className="flex items-center gap-3">
                   <MapPin className="w-4 h-4 text-slate-400 shrink-0" />
-                  {editing ? (
-                    <div className="flex gap-2 flex-1">
-                      <input value={ville} onChange={e => setVille(e.target.value)} placeholder="Ville" className={inputCls} />
-                      <input value={quartier} onChange={e => setQuartier(e.target.value)} placeholder="Quartier" className={inputCls} />
-                    </div>
-                  ) : (
-                    <span className="text-sm text-slate-700 dark:text-slate-300">{ville}, {quartier}</span>
-                  )}
+                  {editing
+                    ? <input value={zone} onChange={e => setZone(e.target.value)} placeholder="Ville, Quartier" className={inputCls} />
+                    : <span className="text-sm text-slate-700 dark:text-slate-300">{user.zone || '—'}</span>
+                  }
                 </div>
               </div>
               {editing && (
                 <div className="flex gap-3 mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
-                  <Button variant="primary" size="sm" onClick={handleSave}>
-                    <CheckCircle className="w-4 h-4" />
+                  <Button variant="primary" size="sm" onClick={handleSave} disabled={saving}>
+                    {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
                     Enregistrer
                   </Button>
                   <Button variant="outline" size="sm" onClick={() => setEditing(false)}>Annuler</Button>
