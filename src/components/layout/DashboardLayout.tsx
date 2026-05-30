@@ -4,7 +4,7 @@ import { Zap, Bell, Sun, Moon, ChevronDown, Menu, X, LogOut, User, Settings } fr
 import { cn } from '@/lib/utils'
 import { useT } from '@/i18n/I18nContext'
 import { useTheme } from '@/context/ThemeContext'
-import { ProviderAvatar } from '@/components/common/ProviderAvatar'
+import { UserAvatar } from '@/components/ui/UserAvatar'
 
 export interface SidebarItem {
   icon?: React.ElementType
@@ -17,7 +17,7 @@ export interface SidebarItem {
 }
 
 interface DashboardLayoutProps {
-  user: { prenom: string; role: string; avatar: string }
+  user: { prenom: string; nom?: string; role: string; avatar: string; avatarUrl?: string }
   items: SidebarItem[]
   children: React.ReactNode
 }
@@ -194,7 +194,7 @@ export function DashboardLayout({ user, items, children }: DashboardLayoutProps)
                 aria-haspopup="menu"
                 aria-expanded={avatarOpen}
               >
-                <ProviderAvatar avatar={user.avatar} size="xs" />
+                <UserAvatar nom={user.nom || user.avatar} prenom={user.prenom} avatar={user.avatarUrl} size="sm" />
                 <span className="text-sm font-semibold text-orange-800 dark:text-orange-300 hidden sm:block">{user.prenom}</span>
                 <ChevronDown className={cn('w-3.5 h-3.5 text-orange-400 transition-transform duration-150', avatarOpen && 'rotate-180')} />
               </button>

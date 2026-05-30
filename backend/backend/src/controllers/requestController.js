@@ -164,7 +164,7 @@ const assignRequest = async (req, res) => {
 
     const updated = await prisma.request.update({
       where: { id: parseInt(id) },
-      data: { prestataireId: parseInt(prestataireId), statut: 'ASSIGNEE' },
+      data: { prestataireId: parseInt(prestataireId) },
       include: {
         prestataire: { select: { id: true, nom: true, prenom: true, avatar: true } },
         particulier: { select: { id: true, nom: true, prenom: true } },

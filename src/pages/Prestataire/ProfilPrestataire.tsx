@@ -22,7 +22,7 @@ export function ProfilPrestataire() {
   const fileRef = useRef<HTMLInputElement>(null)
 
   const currentUser = user
-    ? { prenom: user.prenom, role: 'prestataire', avatar: user.prenom[0] + user.nom[0] }
+    ? { prenom: user.prenom, nom: user.nom, role: 'prestataire', avatar: user.prenom[0] + user.nom[0], avatarUrl: user.avatar || undefined }
     : { prenom: 'Prestataire', role: 'prestataire', avatar: 'PR' }
 
   const items: SidebarItem[] = [

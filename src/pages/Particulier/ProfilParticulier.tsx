@@ -25,7 +25,7 @@ export function ProfilParticulier() {
   const fileRef = useRef<HTMLInputElement>(null)
 
   const currentUser = user
-    ? { prenom: user.prenom, role: 'particulier', avatar: user.prenom[0] + user.nom[0] }
+    ? { prenom: user.prenom, nom: user.nom, role: 'particulier', avatar: user.prenom[0] + user.nom[0], avatarUrl: user.avatar || undefined }
     : { prenom: 'Invité', role: 'particulier', avatar: 'IN' }
 
   const items: SidebarItem[] = [

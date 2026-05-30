@@ -36,17 +36,16 @@ interface ApiService {
 interface ChatTarget { convId: number; user: { id: number; nom: string; prenom: string }; requestTitle?: string }
 
 const STATUT_COLORS: Record<string, string> = {
-  assignee:   'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-400',
+  en_attente: 'bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-400',
   acceptee:   'bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-400',
   en_cours:   'bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-400',
   terminee:   'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400',
   annulee:    'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400',
-  en_attente: 'bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-400',
 }
 
 const STATUT_LABELS: Record<string, string> = {
-  assignee: 'Assignée', acceptee: 'Acceptée', en_cours: 'En cours',
-  terminee: 'Terminée', annulee: 'Annulée', en_attente: 'En attente',
+  en_attente: 'Assignée (en attente)', acceptee: 'Acceptée', en_cours: 'En cours',
+  terminee: 'Terminée', annulee: 'Annulée',
 }
 
 export function PrestataireDashboard() {
@@ -59,8 +58,8 @@ export function PrestataireDashboard() {
   const [chat, setChat] = useState<ChatTarget | null>(null)
 
   const currentUser = user
-    ? { prenom: user.prenom, role: 'prestataire', avatar: user.prenom[0] + user.nom[0] }
-    : { prenom: 'Prestataire', role: 'prestataire', avatar: 'PR' }
+    ? { prenom: user.prenom, nom: user.nom, role: 'prestataire', avatar: user.prenom[0] + user.nom[0], avatarUrl: user.avatar || undefined }
+    : { prenom: 'Prestataire', nom: '', role: 'prestataire', avatar: 'PR' }
 
   useEffect(() => {
     if (tab === 'demandes') loadDemandes()
@@ -94,7 +93,7 @@ export function PrestataireDashboard() {
     } catch (e) {}
   }
 
-  const activeCount = demandes.filter(d => ['ASSIGNEE', 'ACCEPTEE', 'EN_COURS'].includes(d.statut.toUpperCase())).length
+  const activeCount = demandes.filter(d => ['EN_ATTENTE', 'ACCEPTEE', 'EN_COURS'].includes(d.statut.toUpperCase())).length
   const doneCount = demandes.filter(d => d.statut.toUpperCase() === 'TERMINEE').length
 
   const cardStats = [
@@ -188,7 +187,7 @@ export function PrestataireDashboard() {
                         <Button variant="outline" size="sm" onClick={() => openChat(d)}>
                           <MessageSquare className="w-3.5 h-3.5" /> Chat
                         </Button>
-                        {['assignee', 'en_attente'].includes(statut) && (
+                        {statut === 'en_attente' && (
                           <Button variant="cta" size="sm" onClick={() => acceptDemande(d.id)}>
                             Accepter
                           </Button>

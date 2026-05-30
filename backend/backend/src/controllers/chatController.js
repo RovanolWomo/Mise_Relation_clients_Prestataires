@@ -8,57 +8,43 @@ const getOrCreateConversation = async (req, res) => {
 
     if (!otherUserId) return res.status(400).json({ error: 'otherUserId requis' });
 
-    // Chercher une conv existante entre ces deux users sur cette demande
-    let conversation = null;
+    const otherId = parseInt(otherUserId);
+
+    // 1. Si requestId fourni → chercher par requestId (unique)
     if (requestId) {
-      conversation = await prisma.conversation.findUnique({
+      const existing = await prisma.conversation.findUnique({
         where: { requestId: parseInt(requestId) },
-        include: { participants: true, messages: { take: 1 } }
       });
-    }
-
-    if (!conversation) {
-      // Chercher une conv directe entre les deux users
-      conversation = await prisma.conversation.findFirst({
-        where: {
-          requestId: requestId ? parseInt(requestId) : null,
-          participants: {
-            every: { userId: { in: [myId, parseInt(otherUserId)] } }
-          }
-        },
-        include: { participants: true }
-      });
-    }
-
-    if (!conversation) {
-      conversation = await prisma.conversation.create({
-        data: {
-          requestId: requestId ? parseInt(requestId) : null,
-          participants: {
-            create: [
-              { userId: myId },
-              { userId: parseInt(otherUserId) },
-            ]
-          }
-        },
-        include: { participants: true }
-      });
-    } else {
-      // Ensure both participants exist
-      const pIds = conversation.participants.map(p => p.userId);
-      for (const uid of [myId, parseInt(otherUserId)]) {
-        if (!pIds.includes(uid)) {
-          await prisma.conversationParticipant.create({
-            data: { conversationId: conversation.id, userId: uid }
-          });
-        }
+      if (existing) {
+        // Assurer que les deux participants existent
+        await prisma.conversationParticipant.upsert({
+          where: { userId_conversationId: { userId: myId, conversationId: existing.id } },
+          create: { userId: myId, conversationId: existing.id },
+          update: {}
+        });
+        await prisma.conversationParticipant.upsert({
+          where: { userId_conversationId: { userId: otherId, conversationId: existing.id } },
+          create: { userId: otherId, conversationId: existing.id },
+          update: {}
+        });
+        return res.json(existing);
       }
     }
 
+    // 2. Créer une nouvelle conversation
+    const conversation = await prisma.conversation.create({
+      data: {
+        requestId: requestId ? parseInt(requestId) : null,
+        participants: {
+          create: [{ userId: myId }, { userId: otherId }]
+        }
+      },
+    });
+
     res.json(conversation);
   } catch (e) {
-    console.error('getOrCreateConversation:', e);
-    res.status(500).json({ error: 'Erreur serveur' });
+    console.error('getOrCreateConversation:', e.message);
+    res.status(500).json({ error: 'Erreur serveur: ' + e.message });
   }
 };
 

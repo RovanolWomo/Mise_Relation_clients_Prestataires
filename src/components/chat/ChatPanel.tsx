@@ -4,6 +4,7 @@ import { io, Socket } from 'socket.io-client'
 import { useAuth } from '@/context/AuthContext'
 import { api } from '@/services/api'
 import { cn } from '@/lib/utils'
+import { UserAvatar } from '@/components/ui/UserAvatar'
 
 interface Message {
   id: number
@@ -103,7 +104,6 @@ export function ChatPanel({ conversationId, otherUser, requestTitle, onClose, po
   }
 
   const positionCls = position === 'bottom-right' ? 'bottom-4 right-4' : 'bottom-4 left-4'
-  const initials = (u: { prenom: string; nom: string }) => u.prenom[0] + u.nom[0]
 
   return (
     <div className={cn('fixed z-50 flex flex-col shadow-2xl rounded-2xl border border-slate-200 dark:border-slate-700', positionCls,
@@ -113,9 +113,7 @@ export function ChatPanel({ conversationId, otherUser, requestTitle, onClose, po
       <div className="flex items-center justify-between px-4 py-3 bg-slate-900 dark:bg-slate-800 rounded-t-2xl cursor-pointer"
         onClick={() => setMinimized(v => !v)}>
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-full bg-orange-600 flex items-center justify-center text-white text-xs font-bold shrink-0">
-            {otherUser.avatar ? <img src={otherUser.avatar} className="w-8 h-8 rounded-full object-cover" /> : initials(otherUser)}
-          </div>
+          <UserAvatar nom={otherUser.nom} prenom={otherUser.prenom} avatar={otherUser.avatar} size="sm" className="ring-2 ring-white/20" />
           <div className="min-w-0">
             <p className="font-semibold text-sm text-white truncate">{otherUser.prenom} {otherUser.nom}</p>
             {!minimized && otherTyping && <p className="text-xs text-orange-300">est en train d'écrire...</p>}
@@ -150,9 +148,7 @@ export function ChatPanel({ conversationId, otherUser, requestTitle, onClose, po
               return (
                 <div key={msg.id} className={cn('flex items-end gap-1.5', isMe ? 'justify-end' : 'justify-start')}>
                   {!isMe && (
-                    <div className="w-6 h-6 rounded-full bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center text-orange-600 text-[10px] font-bold shrink-0">
-                      {initials(msg.sender)}
-                    </div>
+                    <UserAvatar nom={msg.sender.nom || ''} prenom={msg.sender.prenom || ''} avatar={msg.sender.avatar} size="xs" />
                   )}
                   <div className={cn(
                     'max-w-[75%] px-3 py-2 rounded-2xl text-sm leading-snug break-words',
@@ -169,9 +165,7 @@ export function ChatPanel({ conversationId, otherUser, requestTitle, onClose, po
             {/* Typing indicator */}
             {otherTyping && (
               <div className="flex items-end gap-1.5 justify-start">
-                <div className="w-6 h-6 rounded-full bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center text-orange-600 text-[10px] font-bold shrink-0">
-                  {initials(otherUser)}
-                </div>
+                <UserAvatar nom={otherUser.nom} prenom={otherUser.prenom} avatar={otherUser.avatar} size="xs" />
                 <div className="bg-slate-100 dark:bg-slate-800 px-3 py-2.5 rounded-2xl rounded-bl-sm">
                   <div className="flex gap-1 items-center">
                     <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />

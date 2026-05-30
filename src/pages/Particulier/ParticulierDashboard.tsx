@@ -32,11 +32,10 @@ interface Prestataire {
 
 interface ChatTarget { convId: number; user: { id: number; nom: string; prenom: string }; requestTitle?: string }
 
-type Statut = 'en_attente' | 'assignee' | 'acceptee' | 'en_cours' | 'terminee' | 'annulee'
+type Statut = 'en_attente' | 'acceptee' | 'en_cours' | 'terminee' | 'annulee'
 
 const STATUT_COLORS: Record<string, string> = {
   en_attente: 'bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-400',
-  assignee:   'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-400',
   acceptee:   'bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-400',
   en_cours:   'bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-400',
   terminee:   'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400',
@@ -44,7 +43,7 @@ const STATUT_COLORS: Record<string, string> = {
 }
 
 const STATUT_LABELS: Record<string, string> = {
-  en_attente: 'En attente', assignee: 'Assignée', acceptee: 'Acceptée',
+  en_attente: 'En attente', acceptee: 'Acceptée',
   en_cours: 'En cours', terminee: 'Terminée', annulee: 'Annulée',
 }
 
@@ -179,10 +178,10 @@ export function ParticulierDashboard() {
   }
 
   const currentUser = user
-    ? { prenom: user.prenom, role: 'particulier', avatar: user.prenom[0] + user.nom[0] }
-    : { prenom: 'Invité', role: 'particulier', avatar: 'IN' }
+    ? { prenom: user.prenom, nom: user.nom, role: 'particulier', avatar: user.prenom[0] + user.nom[0], avatarUrl: user.avatar || undefined }
+    : { prenom: 'Invité', nom: '', role: 'particulier', avatar: 'IN' }
 
-  const activeCount = demandes.filter(d => ['assignee', 'acceptee', 'en_cours'].includes(d.statut.toLowerCase())).length
+  const activeCount = demandes.filter(d => ['acceptee', 'en_cours', 'en_attente'].includes(d.statut.toLowerCase())).length
   const doneCount   = demandes.filter(d => d.statut.toLowerCase() === 'terminee').length
 
   const cardStats = [
@@ -245,7 +244,7 @@ export function ParticulierDashboard() {
               {demandes.map(d => {
                 const statut = d.statut.toLowerCase()
                 const isPaid = paidIds.has(d.id)
-                const canAssign = ['en_attente', 'assignee'].includes(statut)
+                const canAssign = statut === 'en_attente'
                 const hasPrestataire = !!d.prestataire
                 return (
                   <div key={d.id} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-5 hover:border-orange-200 dark:hover:border-orange-700 hover:shadow-sm transition-all">

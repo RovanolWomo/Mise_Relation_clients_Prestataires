@@ -16,7 +16,6 @@ enum UserRole {
 
 enum RequestStatus {
   EN_ATTENTE
-  ASSIGNEE
   ACCEPTEE
   EN_COURS
   TERMINEE

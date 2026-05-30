@@ -246,7 +246,7 @@ export function AdminDashboard() {
   }
 
   const currentUser = user
-    ? { prenom: user.prenom, role: 'admin', avatar: user.prenom[0] + user.nom[0] }
+    ? { prenom: user.prenom, nom: user.nom, role: 'admin', avatar: user.prenom[0] + user.nom[0], avatarUrl: user.avatar || undefined }
     : { prenom: 'Admin', role: 'admin', avatar: 'AD' }
 
   const inputCls = 'w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm transition-all'
