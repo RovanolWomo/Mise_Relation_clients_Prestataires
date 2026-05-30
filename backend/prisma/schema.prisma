@@ -1,0 +1,134 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DATABASE_URL")
+}
+
+enum UserRole {
+  PARTICULIER
+  PRESTATAIRE
+  ADMIN
+}
+
+enum RequestStatus {
+  EN_ATTENTE
+  ACCEPTEE
+  EN_COURS
+  TERMINEE
+  ANNULEE
+}
+
+enum NotificationType {
+  INFO
+  SUCCESS
+  WARNING
+  ERROR
+}
+
+model User {
+  id              Int            @id @default(autoincrement())
+  email           String         @unique
+  password        String
+  nom             String
+  prenom          String
+  telephone       String?
+  role            UserRole       @default(PARTICULIER)
+  avatar          String?
+  bio             String?
+  competences     String?
+  experience      String?
+  tarif           Float?
+  zone            String?
+  categorie       String?
+  verified        Boolean        @default(false)
+  statut          String         @default("ACTIF")
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  prestations     Service[]
+  requests        Request[]      @relation("CustomerRequests")
+  handledRequests Request[]      @relation("ProviderRequests")
+  reviews         Review[]       @relation("ReviewAuthor")
+  receivedReviews Review[]       @relation("ReviewTarget")
+  notifications   Notification[]
+}
+
+model Category {
+  id          Int       @id @default(autoincrement())
+  nom         String    @unique
+  description String?
+  icone       String?
+  services    Service[]
+}
+
+model Service {
+  id              Int      @id @default(autoincrement())
+  titre           String
+  description     String
+  prix            Float
+  disponibilite   Boolean  @default(true)
+  image           String?
+  zone            String?
+  datePublication DateTime @default(now())
+
+  prestataireId Int
+  prestataire   User     @relation(fields: [prestataireId], references: [id])
+
+  categoryId    Int
+  category      Category @relation(fields: [categoryId], references: [id])
+
+  reviews       Review[]
+}
+
+model Request {
+  id                  Int           @id @default(autoincrement())
+  titre               String
+  description         String
+  categorie           String?
+  dateIntervention    DateTime?
+  statut              RequestStatus @default(EN_ATTENTE)
+  localisation        String?
+  adresseIntervention String?
+  montant             Float?
+  latitude            Float?
+  longitude           Float?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  particulierId Int
+  particulier   User          @relation("CustomerRequests", fields: [particulierId], references: [id])
+
+  prestataireId Int?
+  prestataire   User?         @relation("ProviderRequests", fields: [prestataireId], references: [id])
+}
+
+model Review {
+  id          Int      @id @default(autoincrement())
+  note        Int
+  commentaire String?
+  dateAvis    DateTime @default(now())
+
+  auteurId      Int
+  auteur        User     @relation("ReviewAuthor", fields: [auteurId], references: [id])
+
+  prestataireId Int
+  prestataire   User     @relation("ReviewTarget", fields: [prestataireId], references: [id])
+
+  serviceId Int?
+  service   Service? @relation(fields: [serviceId], references: [id])
+}
+
+model Notification {
+  id        Int              @id @default(autoincrement())
+  message   String
+  type      NotificationType @default(INFO)
+  lu        Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  userId Int
+  user   User @relation(fields: [userId], references: [id])
+}

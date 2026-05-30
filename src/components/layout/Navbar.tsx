@@ -39,8 +39,8 @@ export function Navbar() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
 
-          <Link to="/" className="flex items-center gap-2 cursor-pointer">
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center shadow-sm">
+          <Link to="/" className="flex items-center gap-2 cursor-pointer group">
+            <div className="w-8 h-8 bg-orange-600 rounded-lg flex items-center justify-center shadow-sm group-hover:bg-orange-700 transition-colors">
               <Zap className="w-4 h-4 text-white" aria-hidden />
             </div>
             <span className={cn('font-display font-bold text-xl', frosted ? 'text-slate-900 dark:text-white' : 'text-white')}>
@@ -54,11 +54,11 @@ export function Navbar() {
                 key={link.href}
                 to={link.href}
                 className={cn(
-                  'px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-150 cursor-pointer',
+                  'px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150 cursor-pointer',
                   pathname === link.href
-                    ? 'bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400'
+                    ? 'bg-orange-50 dark:bg-orange-900/40 text-orange-700 dark:text-orange-400'
                     : frosted
-                      ? 'text-slate-600 dark:text-slate-300 hover:text-blue-700 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30'
+                      ? 'text-slate-600 dark:text-slate-300 hover:text-orange-700 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/30'
                       : 'text-white/80 hover:text-white hover:bg-white/10',
                 )}
               >
@@ -126,7 +126,7 @@ export function Navbar() {
               key={link.href}
               to={link.href}
               onClick={() => setOpen(false)}
-              className="px-3 py-2.5 rounded-xl text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-700 cursor-pointer transition-colors"
+              className="px-3 py-2.5 rounded-xl text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-orange-50 dark:hover:bg-orange-900/30 hover:text-orange-700 cursor-pointer transition-colors"
             >
               {link.label}
             </Link>
@@ -141,4 +141,3 @@ export function Navbar() {
     </header>
   )
 }
-

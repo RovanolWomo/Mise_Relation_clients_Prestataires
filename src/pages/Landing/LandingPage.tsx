@@ -16,22 +16,22 @@ const iconMap: Record<string, React.ElementType> = {
 }
 
 const testimonials = [
-  { id: 1, note: 5, commentaire: "J'ai trouve un electricien en moins de 2h. Travail impeccable, prix honnete.", auteur: 'Marie K.', ville: 'Yaounde', avatar: 'MK' },
-  { id: 2, note: 5, commentaire: "Urgence plomberie resolue le soir meme. Prestataire professionnel et ponctuel.", auteur: 'Patrick N.', ville: 'Douala', avatar: 'PN' },
-  { id: 3, note: 5, commentaire: "Interface simple, prestataires verifies. Je recommande a 100%.", auteur: 'Joelle A.', ville: 'Bafoussam', avatar: 'JA' },
+  { id: 1, note: 5, commentaire: "J'ai trouvé un électricien en moins de 2h. Travail impeccable, prix honnête.", auteur: 'Marie Kamga', ville: 'Yaoundé', avatar: 'MK' },
+  { id: 2, note: 5, commentaire: "Urgence plomberie résolue le soir même. Prestataire professionnel et ponctuel.", auteur: 'Patrick Nkemdirim', ville: 'Douala', avatar: 'PN' },
+  { id: 3, note: 5, commentaire: "Interface simple, prestataires vérifiés. Je recommande à 100%.", auteur: 'Joëlle Abanda', ville: 'Bafoussam', avatar: 'JA' },
 ]
 
 const steps = [
-  { icon: Search, title: 'Decrivez votre besoin', desc: 'Renseignez le type de service, votre localisation et vos disponibilites.' },
-  { icon: Users, title: 'Choisissez un prestataire', desc: 'Comparez les profils verifies, notes et tarifs, puis reservez.' },
-  { icon: CheckCircle, title: "Suivez l'intervention", desc: "Confirmez, suivez en temps reel et payez en toute securite." },
+  { icon: Search, title: 'Décrivez votre besoin', desc: 'Renseignez le type de service, votre localisation et vos disponibilités.' },
+  { icon: Users, title: 'Choisissez un prestataire', desc: 'Comparez les profils vérifiés, notes et tarifs, puis réservez.' },
+  { icon: CheckCircle, title: "Suivez l'intervention", desc: "Confirmez, suivez en temps réel et payez en toute sécurité." },
 ]
 
 const trustPoints = [
-  { icon: Shield, title: 'Prestataires verifies', desc: 'Chaque artisan est identifie et valide avant toute publication.' },
-  { icon: Star, title: 'Avis authentiques', desc: 'Seuls les clients ayant reserve peuvent laisser un avis.' },
-  { icon: Clock, title: 'Reponse en 2h max', desc: "Nos prestataires s'engagent a repondre rapidement." },
-  { icon: ThumbsUp, title: 'Paiement securise', desc: "Votre paiement est libere apres validation de l'intervention." },
+  { icon: Shield, title: 'Prestataires vérifiés', desc: 'Chaque artisan est identifié et validé avant toute publication.' },
+  { icon: Star, title: 'Avis authentiques', desc: 'Seuls les clients ayant réservé peuvent laisser un avis.' },
+  { icon: Clock, title: 'Réponse en 2h max', desc: "Nos prestataires s'engagent à répondre rapidement." },
+  { icon: ThumbsUp, title: 'Paiement sécurisé', desc: "Votre paiement est libéré après validation de l'intervention." },
 ]
 
 export function LandingPage() {
@@ -47,26 +47,27 @@ export function LandingPage() {
           backgroundImage: 'url(/src/assets/Bk-img/fond2.jpg)',
           backgroundSize: 'cover',
           backgroundPosition: 'center',
+          backgroundRepeat: 'no-repeat',
         }}
       >
-        <div className="absolute inset-0 bg-slate-900/70 backdrop-blur-[2px]" />
+        <div className="absolute inset-0 bg-slate-900/65" />
         <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
-          <div className="absolute -top-32 right-0 w-[600px] h-[600px] rounded-full bg-blue-600/10 blur-3xl" />
+          <div className="absolute -top-32 right-0 w-[600px] h-[600px] rounded-full bg-orange-600/10 blur-3xl" />
           <div className="absolute bottom-0 -left-32 w-[400px] h-[400px] rounded-full bg-orange-500/10 blur-3xl" />
         </div>
 
         <div className="relative z-10 max-w-4xl mx-auto px-4 sm:px-6 text-center">
           <h1 className="font-display text-4xl sm:text-5xl lg:text-6xl font-bold text-white leading-tight tracking-tight mb-6">
             Trouvez le bon{' '}
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-orange-400">
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-amber-400">
               prestataire technique
             </span>
-            {' '}pres de chez vous
+            {' '}près de chez vous
           </h1>
 
           <p className="text-lg sm:text-xl text-slate-300 max-w-2xl mx-auto mb-10 leading-relaxed">
-            Connectez-vous avec des artisans qualifies pour tous vos travaux.
-            Rapide, fiable, securise.
+            Connectez-vous avec des artisans qualifiés pour tous vos travaux.
+            Rapide, fiable, sécurisé.
           </p>
 
           <div className="max-w-2xl mx-auto">
@@ -75,7 +76,7 @@ export function LandingPage() {
                 <Search className="w-5 h-5 text-slate-400 shrink-0" aria-hidden />
                 <input
                   type="search"
-                  placeholder="Ex: Electricien à Yaoundé..."
+                  placeholder="Ex : Électricien à Yaoundé..."
                   value={query}
                   onChange={e => setQuery(e.target.value)}
                   className="w-full py-2.5 text-slate-800 dark:text-white placeholder-slate-400 bg-transparent outline-none text-base"
@@ -89,8 +90,11 @@ export function LandingPage() {
             </div>
             <p className="mt-3 text-sm text-slate-400">
               Populaire :&nbsp;
-              {['Plomberie', 'Electricite', 'Informatique'].map(s => (
-                <button key={s} className="underline underline-offset-2 hover:text-white transition-colors cursor-pointer mr-2 text-slate-300">
+              {['Plomberie', 'Électricité', 'Informatique'].map(s => (
+                <button
+                  key={s}
+                  className="underline underline-offset-2 hover:text-white transition-colors cursor-pointer mr-2 text-slate-300 active:scale-95"
+                >
                   {s}
                 </button>
               ))}
@@ -134,10 +138,10 @@ export function LandingPage() {
                 <Link
                   key={cat.id}
                   to={`/services?cat=${cat.id}`}
-                  className="group flex flex-col items-center gap-3 p-6 rounded-2xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-blue-200 dark:hover:border-blue-700 hover:shadow-lg hover:shadow-blue-100/40 dark:hover:shadow-none transition-all duration-200 cursor-pointer"
+                  className="group flex flex-col items-center gap-3 p-6 rounded-2xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-orange-200 dark:hover:border-orange-700 hover:shadow-lg hover:shadow-orange-100/40 dark:hover:shadow-none transition-all duration-200 cursor-pointer"
                 >
-                  <div className="w-12 h-12 rounded-xl bg-blue-50 dark:bg-blue-900/30 group-hover:bg-blue-100 dark:group-hover:bg-blue-900/50 flex items-center justify-center transition-colors">
-                    <Icon className="w-6 h-6 text-blue-600 dark:text-blue-400" aria-hidden />
+                  <div className="w-12 h-12 rounded-xl bg-orange-50 dark:bg-orange-900/30 group-hover:bg-orange-100 dark:group-hover:bg-orange-900/50 flex items-center justify-center transition-colors">
+                    <Icon className="w-6 h-6 text-orange-600 dark:text-orange-400" aria-hidden />
                   </div>
                   <div className="text-center">
                     <p className="font-display font-semibold text-slate-800 dark:text-slate-200 text-sm leading-snug">{cat.nom}</p>
@@ -155,10 +159,10 @@ export function LandingPage() {
         <div className="max-w-5xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-16">
             <h2 className="font-display text-3xl sm:text-4xl font-bold text-slate-900 dark:text-white mb-3">
-              Comment ca marche ?
+              Comment ça marche ?
             </h2>
             <p className="text-slate-500 dark:text-slate-400 text-lg max-w-xl mx-auto">
-              Reservez un prestataire en quelques minutes.
+              Réservez un prestataire en quelques minutes.
             </p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 relative">
@@ -168,15 +172,15 @@ export function LandingPage() {
                 <div key={step.title} className="relative flex flex-col items-center text-center gap-5">
                   {i < steps.length - 1 && (
                     <div aria-hidden className="hidden md:flex absolute top-8 left-[calc(50%+3.5rem)] right-0 items-center">
-                      <div className="flex-1 h-px bg-blue-200 dark:bg-blue-800" />
-                      <ChevronRight className="w-4 h-4 text-blue-300 dark:text-blue-700 -ml-1" />
+                      <div className="flex-1 h-px bg-orange-200 dark:bg-orange-800" />
+                      <ChevronRight className="w-4 h-4 text-orange-300 dark:text-orange-700 -ml-1" />
                     </div>
                   )}
                   <div className="relative">
-                    <div className="w-16 h-16 rounded-2xl bg-blue-600 shadow-lg shadow-blue-300/30 flex items-center justify-center">
+                    <div className="w-16 h-16 rounded-2xl bg-orange-600 shadow-lg shadow-orange-300/30 flex items-center justify-center">
                       <Icon className="w-7 h-7 text-white" aria-hidden />
                     </div>
-                    <span className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-white dark:bg-slate-900 border-2 border-blue-200 dark:border-blue-700 flex items-center justify-center text-xs font-bold text-blue-600 dark:text-blue-400">
+                    <span className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-white dark:bg-slate-900 border-2 border-orange-200 dark:border-orange-700 flex items-center justify-center text-xs font-bold text-orange-600 dark:text-orange-400">
                       {i + 1}
                     </span>
                   </div>
@@ -197,9 +201,9 @@ export function LandingPage() {
           <div className="flex items-end justify-between mb-10">
             <div>
               <h2 className="font-display text-3xl sm:text-4xl font-bold text-slate-900 dark:text-white mb-1">Services en vedette</h2>
-              <p className="text-slate-500 dark:text-slate-400">Les mieux notes par la communaute</p>
+              <p className="text-slate-500 dark:text-slate-400">Les mieux notés par la communauté</p>
             </div>
-            <Link to="/services" className="hidden sm:inline-flex items-center gap-1 text-sm font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors cursor-pointer">
+            <Link to="/services" className="hidden sm:inline-flex items-center gap-1 text-sm font-semibold text-orange-600 dark:text-orange-400 hover:text-orange-800 dark:hover:text-orange-300 transition-colors cursor-pointer">
               Voir tout <ArrowRight className="w-4 h-4" aria-hidden />
             </Link>
           </div>
@@ -215,15 +219,15 @@ export function LandingPage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
             <div>
               <h2 className="font-display text-3xl sm:text-4xl font-bold text-white mb-8">
-                Une plateforme pensee pour votre confiance
+                Une plateforme pensée pour votre confiance
               </h2>
               <div className="space-y-6">
                 {trustPoints.map(tp => {
                   const Icon = tp.icon
                   return (
                     <div key={tp.title} className="flex items-start gap-4">
-                      <div className="w-10 h-10 rounded-xl bg-blue-900/50 flex items-center justify-center shrink-0">
-                        <Icon className="w-5 h-5 text-blue-400" aria-hidden />
+                      <div className="w-10 h-10 rounded-xl bg-orange-900/50 flex items-center justify-center shrink-0">
+                        <Icon className="w-5 h-5 text-orange-400" aria-hidden />
                       </div>
                       <div>
                         <h3 className="font-display font-semibold text-white mb-1">{tp.title}</h3>
@@ -236,9 +240,9 @@ export function LandingPage() {
             </div>
             <div className="flex flex-col gap-4">
               {testimonials.map(t => (
-                <div key={t.id} className="p-5 rounded-2xl bg-white/5 border border-white/10">
+                <div key={t.id} className="p-5 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/8 transition-colors">
                   <div className="flex items-center gap-3 mb-3">
-                    <div className="w-9 h-9 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold shrink-0">
+                    <div className="w-9 h-9 rounded-full bg-orange-600 flex items-center justify-center text-white text-xs font-bold shrink-0">
                       {t.avatar}
                     </div>
                     <div>
@@ -259,9 +263,9 @@ export function LandingPage() {
       <section className="py-20 bg-slate-50 dark:bg-slate-900">
         <div className="max-w-5xl mx-auto px-4 sm:px-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-8 flex flex-col gap-5 hover:shadow-xl hover:shadow-blue-100/30 dark:hover:shadow-none transition-shadow">
-              <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center">
-                <Search className="w-6 h-6 text-blue-600 dark:text-blue-400" aria-hidden />
+            <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-8 flex flex-col gap-5 hover:shadow-xl hover:shadow-orange-100/30 dark:hover:shadow-none transition-shadow">
+              <div className="w-12 h-12 rounded-2xl bg-orange-50 dark:bg-orange-900/30 flex items-center justify-center">
+                <Search className="w-6 h-6 text-orange-600 dark:text-orange-400" aria-hidden />
               </div>
               <div>
                 <h3 className="font-display text-2xl font-bold text-slate-900 dark:text-white mb-2">Je suis un particulier</h3>
@@ -271,13 +275,13 @@ export function LandingPage() {
                 <Button variant="primary" size="lg">Trouver un prestataire <ArrowRight className="w-4 h-4" aria-hidden /></Button>
               </Link>
             </div>
-            <div className="bg-blue-600 rounded-3xl p-8 flex flex-col gap-5 hover:bg-blue-700 transition-colors">
+            <div className="bg-orange-600 rounded-3xl p-8 flex flex-col gap-5 hover:bg-orange-700 transition-colors cursor-default">
               <div className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center">
                 <Briefcase className="w-6 h-6 text-white" aria-hidden />
               </div>
               <div>
                 <h3 className="font-display text-2xl font-bold text-white mb-2">Je suis prestataire</h3>
-                <p className="text-blue-200 leading-relaxed">Developpez votre activite et recevez des demandes qualifiees.</p>
+                <p className="text-orange-200 leading-relaxed">Développez votre activité et recevez des demandes qualifiées.</p>
               </div>
               <Link to="/inscription?role=prestataire">
                 <Button variant="cta" size="lg">Proposer mes services <ArrowRight className="w-4 h-4" aria-hidden /></Button>

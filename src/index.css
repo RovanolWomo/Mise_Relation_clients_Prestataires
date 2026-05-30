@@ -7,9 +7,9 @@
   --font-sans: 'Inter', system-ui, sans-serif;
   --font-display: 'Inter', system-ui, sans-serif;
 
-  --color-brand: #2563EB;
-  --color-brand-light: #EFF6FF;
-  --color-brand-dark: #1D4ED8;
+  --color-brand: #EA580C;
+  --color-brand-light: #FFF7ED;
+  --color-brand-dark: #C2410C;
   --color-accent: #EA580C;
   --color-accent-light: #FFF7ED;
 }
@@ -48,7 +48,6 @@
 @layer utilities {
   .font-display { font-family: 'Inter', system-ui, sans-serif; }
 
-  /* Dark mode surfaces */
   .surface {
     background-color: #ffffff;
     color: #0F172A;

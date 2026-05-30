@@ -1,36 +1,4 @@
-sur tous l'ensemble de l'application je ne veux pas le couleur violette remplace par        
-  l'orange. je veux que cherche et install un skille pour ouvrir le navigateur lancer le      
-  projet et faire des cliques sur la page pour observer le comportement (le skill doit etre   
-  intaller en globale sur la machine). je veux que tu met dans la peux d'un expert en         
-  developpement logiciel et expert design sur messure avec des comprtences hors norme, et     
-  faire une revue des interface, de la logique UI/UX . tous les boutons doivent avoir des     
-  interaction avec l'utilisateur, je constate aussi que dans la sidebase les menus present    
-  sont encore present dans le body ce qui ne dait pas pro cela dans tous les dashbord, dans   
-  l'avartar de l'utilisateu, l'icon de notification doit etre fonctionnel.dans les step de    
-  - AdminDashboard.tsx — sidebar with Vue d'ensemble, Utilisateurs, KYC (badge), Signalements,
-   Parametres
-
-  Stars removed + ProviderAvatar added:
-  - PrestationCard.tsx, ServicesPage.tsx, PrestatairesPage.tsx — no more star ratings, avatar 
-  uses ProviderAvatar component
-  - ServiceDetailPage.tsx, PrestataireProfil.tsx — ProviderAvatar for provider photos, star   
-  ratings only kept in client review sections
-
-✻ Churned for 22m 50s · 1 shell still running
-
-──────────────────────────────────────────────────────────────────────────────────────────────
-> sur tous l'ensemble de l'application je ne veux pas le couleur violette remplace par
-  l'orange. je veux que cherche et install un skille pour ouvrir le navigateur lancer le
-  projet et faire des cliques sur la page pour observer le comportement (le skill doit etre
-  intaller en globale sur la machine). je veux que tu met dans la peux d'un expert en
-  developpement logiciel et expert design sur messure avec des comprtences hors norme, et
-  faire une revue des interface, de la logique UI/UX . tous les boutons doivent avoir des
-  interaction avec l'utilisateur, je constate aussi que dans la sidebase les menus present
-  sont encore present dans le body ce qui ne dait pas pro cela dans tous les dashbord, dans
-  l'avartar de l'utilisateu, l'icon de notification doit etre fonctionnel.dans les step de
-  reation de compte du prestataire, pour la saisir du numero de telephone je veux que tu      
-  utilise un composant de telphone country pour avoir le format telechonique du pays          
-  (bloquer sur le CM par defaut), dans ke step 2 la description doit avoir minimum 20         
-  caractaire.dans le dashbord de l'admin dans le menu KYC il doit pouvoir visualiser tous     
-  ces donnees( textes, medias). dans le dahbord du particulier une fois la prestation         
-  puit proceder au paiement vias les paiement locaux avec agregateur de paeiment free que tu    connais, avant defaire une demande ca possition geographique doit etre recupere avec l'api    de google map( mais la variable de la cle api dans le .env je vais mettre ma cles) et en      fonction de ca position le tris des prestataire dans sa zome sera fait. dans le dashbord du    prestaire pour faire une nouvelle prestation il doit fournir une atestion de formation ou    un diplome dans ce dommaine et la description doit toijours faire nimimun 20 caractaires et    les menus non actif dans la sidebar ne doivent pas etre mis en avant et le menu profil       doit etre fonctionnel. dans les steps de reation de compte il faut un syteme de mot de        passe tres fort,dans la section de verification d'identite je veux une exception entre        diplome et attestation professionnelle(soit un des 2 ou si possible les 2) et au clique sur    le bouton soumettre nom dossier je veux une modale de confimation de partage de donnees      personnel pour analyse (question de ce proteger contre des poursuite jurique consernant la    manipulation des donnees personnels sur le teritoire camerounais (inspire de des textes de    loi nationnal)). je recommande fortemment l'utilisation des composant reutilisable pour de    bonnes pratiques et dans les placeholder met des exemples de nom camerounais(exemple          camerounais). je veux que mette un bakground image a la section hero en cover total a la      place de la couleur lineaire presente actuelement, tu utilisera la resource                   src\assets\Bk-img\fond2.jpg 
+maintenant je veux dynamise toute l'application avec un backend, en analysant l'ensemble    
+  des interfaces je veux que tu realise le backend en NodeJS (ce backend sera dans un         
+  donnees Neon sur cette chaine postgresql://neondb_owner:npg_R2iZVdL6wEjh@ep-bold-star-apq3p   pwk-pooler.c-7.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require et      pour le stokage des donnees numerique cela ce fera avec clodimery voici les info: Cloud       name: dwbkujk8k API Key: 575192345416184                                                      API Secret: 9p_Qhh5XfztIREK6-ziBPwqzHcA pour l'utilisation de la geolocalisation google map    j'utilise la cle:AIzaSyCRyntmD7dGu3X8j4FPMmfXXNMeTrrmDGY . tout cela doit etre dans le       .env soit en expert en developpement backend.  fait des amelioration sela la logique metier    de prestation de service   
+  

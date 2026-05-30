@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nContext'
 import { ThemeProvider } from '@/context/ThemeContext'
+import { AuthProvider } from '@/context/AuthContext'
 import { Navbar } from '@/components/layout/Navbar'
 import { Footer } from '@/components/layout/Footer'
 import { LandingPage } from '@/pages/Landing/LandingPage'
@@ -8,8 +9,10 @@ import { AuthPage } from '@/pages/Auth/AuthPage'
 import { RegisterPrestatairePage } from '@/pages/Auth/RegisterPrestatairePage'
 import { ParticulierDashboard } from '@/pages/Particulier/ParticulierDashboard'
 import { NouvelleDemandePage } from '@/pages/Particulier/NouvelleDemandePage'
+import { ProfilParticulier } from '@/pages/Particulier/ProfilParticulier'
 import { PrestataireDashboard } from '@/pages/Prestataire/PrestataireDashboard'
 import { NouvellePrestation } from '@/pages/Prestataire/NouvellePrestation'
+import { ProfilPrestataire } from '@/pages/Prestataire/ProfilPrestataire'
 import { AdminDashboard } from '@/pages/Admin/AdminDashboard'
 import { ServicesPage } from '@/pages/Services/ServicesPage'
 import { ServiceDetailPage } from '@/pages/Services/ServiceDetailPage'
@@ -45,10 +48,12 @@ function AppRoutes() {
         {/* Particulier */}
         <Route path="/particulier" element={<ParticulierDashboard />} />
         <Route path="/particulier/nouvelle-demande" element={<NouvelleDemandePage />} />
+        <Route path="/particulier/profil" element={<ProfilParticulier />} />
 
         {/* Prestataire */}
         <Route path="/prestataire" element={<PrestataireDashboard />} />
         <Route path="/prestataire/nouvelle-prestation" element={<NouvellePrestation />} />
+        <Route path="/prestataire/profil" element={<ProfilPrestataire />} />
 
         {/* Admin */}
         <Route path="/admin" element={<AdminDashboard />} />
@@ -61,7 +66,9 @@ export default function App() {
   return (
     <ThemeProvider>
       <I18nProvider>
-        <AppRoutes />
+        <AuthProvider>
+          <AppRoutes />
+        </AuthProvider>
       </I18nProvider>
     </ThemeProvider>
   )
