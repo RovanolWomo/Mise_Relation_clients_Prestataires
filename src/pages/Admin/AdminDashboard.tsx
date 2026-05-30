@@ -4,7 +4,7 @@ import {
   Plus, Trash2, Star, CreditCard, LayoutDashboard,
   UserPlus, Tag, TrendingUp,
   X, ZoomIn, ToggleLeft, ToggleRight, Search,
-  RefreshCw, Package
+  RefreshCw, Package, Edit2
 } from 'lucide-react'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import type { SidebarItem } from '@/components/layout/DashboardLayout'
@@ -19,7 +19,7 @@ interface Stats { totalUsers: number; totalPrestataires: number; pendingKyc: num
 interface UserRow { id: number; nom: string; prenom: string; email: string; telephone?: string; role: string; statut: string; verified: boolean; categorie?: string; createdAt: string }
 interface KycDossier extends UserRow { bio?: string; experience?: string; tarif?: number; zone?: string; kycDocuments?: { id: number; type: string; url: string; mimeType?: string }[] }
 interface Category { id: number; nom: string; description?: string; icone?: string; _count?: { services: number } }
-interface ServiceRow { id: number; titre: string; prix: number; featured: boolean; disponibilite: boolean; prestataire: { nom: string; prenom: string }; category: { nom: string }; _count?: { reviews: number } }
+interface ServiceRow { id: number; titre: string; description: string; prix: number; featured: boolean; disponibilite: boolean; zone?: string; prestataire: { id: number; nom: string; prenom: string }; category: { id: number; nom: string }; categoryId: number; _count?: { reviews: number } }
 interface RequestRow { id: number; titre: string; categorie?: string; statut: string; localisation?: string; createdAt: string; particulier: { nom: string; prenom: string }; prestataire?: { nom: string; prenom: string } }
 interface PayConfig { id?: number; provider: string; enabled: boolean; merchantId?: string; apiKey?: string; webhookUrl?: string }
 
@@ -60,7 +60,9 @@ function MediaViewer({ doc }: { doc: { url: string; type: string; mimeType?: str
 }
 
 // ---- Main Component ----
-type Tab = 'overview' | 'users' | 'kyc' | 'register' | 'categories' | 'featured' | 'requests' | 'payments'
+type Tab = 'overview' | 'users' | 'kyc' | 'register' | 'categories' | 'services' | 'requests' | 'payments'
+
+const EMPTY_SERVICE_FORM = { titre: '', description: '', prix: '', categoryId: '', prestataireId: '', zone: '', disponibilite: true }
 
 export function AdminDashboard() {
   const { user } = useAuth()
@@ -74,17 +76,22 @@ export function AdminDashboard() {
   const [categories, setCategories] = useState<Category[]>([])
   const [services, setServices] = useState<ServiceRow[]>([])
   const [requests, setRequests] = useState<RequestRow[]>([])
+  const [prestataires, setPrestataires] = useState<UserRow[]>([])
 
   // UI states
   const [kycModalOpen, setKycModalOpen] = useState(false)
   const [catModalOpen, setCatModalOpen] = useState(false)
+  const [serviceModalOpen, setServiceModalOpen] = useState(false)
+  const [editingService, setEditingService] = useState<ServiceRow | null>(null)
   const [searchUsers, setSearchUsers] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
+  const [serviceSearch, setServiceSearch] = useState('')
 
   // Forms
   const [newCat, setNewCat] = useState({ nom: '', description: '', icone: '' })
   const [registerForm, setRegisterForm] = useState({ email: '', password: '', nom: '', prenom: '', telephone: '', role: 'PARTICULIER', categorie: '', experience: '', bio: '', tarif: '', zone: '' })
   const [payForm, setPayForm] = useState<Record<string, Partial<PayConfig>>>({})
+  const [serviceForm, setServiceForm] = useState<typeof EMPTY_SERVICE_FORM>(EMPTY_SERVICE_FORM)
   const [feedbackMsg, setFeedbackMsg] = useState<string | null>(null)
 
   const feedback = (msg: string) => { setFeedbackMsg(msg); setTimeout(() => setFeedbackMsg(null), 3000) }
@@ -94,7 +101,7 @@ export function AdminDashboard() {
     else if (tab === 'users') loadUsers()
     else if (tab === 'kyc') loadKyc()
     else if (tab === 'categories') loadCategories()
-    else if (tab === 'featured') loadServices()
+    else if (tab === 'services') { loadServices(); loadCategories(); loadPrestataires() }
     else if (tab === 'requests') loadRequests()
     else if (tab === 'payments') loadPayments()
   }, [tab])
@@ -118,7 +125,13 @@ export function AdminDashboard() {
     try { setCategories(await api.get<Category[]>('/admin/categories')) } catch (_) {}
   }
   async function loadServices() {
-    try { setServices(await api.get<ServiceRow[]>('/admin/services/featured')) } catch (_) {}
+    try { setServices(await api.get<ServiceRow[]>('/admin/services')) } catch (_) {}
+  }
+  async function loadPrestataires() {
+    try {
+      const d = await api.get<{ users: UserRow[] }>('/admin/users?role=PRESTATAIRE&limit=100')
+      setPrestataires(d.users)
+    } catch (_) {}
   }
   async function loadRequests() {
     try { const d = await api.get<{ requests: RequestRow[] }>('/admin/requests?limit=50'); setRequests(d.requests) } catch (_) {}
@@ -170,6 +183,53 @@ export function AdminDashboard() {
     try { await api.patch(`/admin/services/${id}/featured`, { featured: !featured }); loadServices() } catch (_) {}
   }
 
+  function openCreateService() {
+    setEditingService(null)
+    setServiceForm(EMPTY_SERVICE_FORM)
+    setServiceModalOpen(true)
+  }
+
+  function openEditService(s: ServiceRow) {
+    setEditingService(s)
+    setServiceForm({
+      titre: s.titre,
+      description: s.description,
+      prix: String(s.prix),
+      categoryId: String(s.categoryId || s.category?.id || ''),
+      prestataireId: String(s.prestataire?.id || ''),
+      zone: s.zone || '',
+      disponibilite: s.disponibilite,
+    })
+    setServiceModalOpen(true)
+  }
+
+  async function handleSaveService() {
+    if (!serviceForm.titre || !serviceForm.description || !serviceForm.prix || !serviceForm.categoryId || !serviceForm.prestataireId) {
+      feedback('❌ Remplissez tous les champs obligatoires')
+      return
+    }
+    try {
+      if (editingService) {
+        await api.put(`/admin/services/${editingService.id}`, serviceForm)
+        feedback('✅ Service mis à jour')
+      } else {
+        await api.post('/admin/services', serviceForm)
+        feedback('✅ Service créé')
+      }
+      setServiceModalOpen(false)
+      loadServices()
+    } catch (e: unknown) { feedback('❌ ' + (e instanceof Error ? e.message : 'Erreur')) }
+  }
+
+  async function handleDeleteService(id: number) {
+    if (!confirm('Supprimer ce service définitivement ?')) return
+    try {
+      await api.delete(`/admin/services/${id}`)
+      feedback('✅ Service supprimé')
+      loadServices()
+    } catch (e: unknown) { feedback('❌ ' + (e instanceof Error ? e.message : 'Erreur')) }
+  }
+
   async function handleRegisterUser() {
     try {
       await api.post('/admin/users/register', registerForm)
@@ -198,7 +258,7 @@ export function AdminDashboard() {
     { icon: UserPlus,        label: 'Inscription manuelle', onClick: () => setTab('register'),   active: tab === 'register'    },
     { separator: true },
     { icon: Tag,             label: 'Catégories',           onClick: () => setTab('categories'), active: tab === 'categories'  },
-    { icon: Star,            label: 'Services vedette',     onClick: () => setTab('featured'),   active: tab === 'featured'    },
+    { icon: Briefcase,       label: 'Services',             onClick: () => setTab('services'),   active: tab === 'services'    },
     { icon: Package,         label: 'Demandes',             onClick: () => setTab('requests'),   active: tab === 'requests'    },
     { separator: true },
     { icon: CreditCard,      label: 'Paiements',            onClick: () => setTab('payments'),   active: tab === 'payments'    },
@@ -481,46 +541,138 @@ export function AdminDashboard() {
           </div>
         )}
 
-        {/* ======== SERVICES VEDETTE ======== */}
-        {tab === 'featured' && (
+        {/* ======== SERVICES CRUD ======== */}
+        {tab === 'services' && (
           <div>
             <div className="flex items-center justify-between mb-6">
-              <div>
-                <h1 className="font-display text-2xl font-bold text-slate-900 dark:text-white">Services vedette</h1>
-                <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Activez le statut vedette pour mettre un service en avant</p>
+              <h1 className="font-display text-2xl font-bold text-slate-900 dark:text-white">Gestion des services</h1>
+              <div className="flex gap-2">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input value={serviceSearch} onChange={e => setServiceSearch(e.target.value)} placeholder="Rechercher..." className={cn(inputCls, 'pl-9 w-48')} />
+                </div>
+                <Button variant="primary" size="sm" onClick={openCreateService}>
+                  <Plus className="w-4 h-4" /> Nouveau service
+                </Button>
               </div>
             </div>
-            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 overflow-hidden">
-              <table className="w-full text-sm">
+
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 overflow-x-auto">
+              <table className="w-full text-sm min-w-[700px]">
                 <thead className="bg-slate-50 dark:bg-slate-800 border-b border-slate-100 dark:border-slate-700">
                   <tr>
-                    {['Service', 'Prestataire', 'Catégorie', 'Prix', 'Avis', 'Vedette'].map(h => (
+                    {['Titre', 'Prestataire', 'Catégorie', 'Prix', 'Dispo', 'Vedette', 'Actions'].map(h => (
                       <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {services.map(s => (
+                  {services
+                    .filter(s => !serviceSearch || s.titre.toLowerCase().includes(serviceSearch.toLowerCase()) || s.prestataire.nom.toLowerCase().includes(serviceSearch.toLowerCase()))
+                    .map(s => (
                     <tr key={s.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                      <td className="px-4 py-3 font-medium text-slate-900 dark:text-white max-w-[200px] truncate">{s.titre}</td>
-                      <td className="px-4 py-3 text-slate-500">{s.prestataire.prenom} {s.prestataire.nom}</td>
-                      <td className="px-4 py-3"><span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-full text-xs">{s.category.nom}</span></td>
-                      <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{formatPrice(s.prix)}</td>
-                      <td className="px-4 py-3 text-slate-500">{s._count?.reviews || 0}</td>
                       <td className="px-4 py-3">
-                        <button onClick={() => handleToggleFeatured(s.id, s.featured)} className="cursor-pointer transition-colors">
+                        <p className="font-medium text-slate-900 dark:text-white max-w-[180px] truncate">{s.titre}</p>
+                        {s.zone && <p className="text-xs text-slate-400 truncate max-w-[180px]">{s.zone}</p>}
+                      </td>
+                      <td className="px-4 py-3 text-slate-500 text-xs">{s.prestataire.prenom} {s.prestataire.nom}</td>
+                      <td className="px-4 py-3">
+                        <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-full text-xs">{s.category.nom}</span>
+                      </td>
+                      <td className="px-4 py-3 font-semibold text-slate-700 dark:text-slate-300 whitespace-nowrap">{formatPrice(s.prix)}</td>
+                      <td className="px-4 py-3">
+                        <span className={cn('px-2 py-0.5 rounded-full text-xs font-semibold', s.disponibilite ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600')}>
+                          {s.disponibilite ? 'Oui' : 'Non'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <button onClick={() => handleToggleFeatured(s.id, s.featured)} className="cursor-pointer transition-colors" title={s.featured ? 'Retirer vedette' : 'Mettre en vedette'}>
                           {s.featured
                             ? <ToggleRight className="w-8 h-8 text-orange-500" />
-                            : <ToggleLeft className="w-8 h-8 text-slate-300" />
+                            : <ToggleLeft className="w-8 h-8 text-slate-300 dark:text-slate-600" />
                           }
                         </button>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => openEditService(s)} className="p-1.5 text-slate-400 hover:text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-colors cursor-pointer" title="Modifier">
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button onClick={() => handleDeleteService(s.id)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors cursor-pointer" title="Supprimer">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-              {services.length === 0 && <p className="text-center py-8 text-slate-400">Aucun service</p>}
+              {services.length === 0 && <p className="text-center py-8 text-slate-400">Aucun service publié</p>}
             </div>
+
+            {/* Modal Créer / Modifier service */}
+            <Modal
+              isOpen={serviceModalOpen}
+              onClose={() => setServiceModalOpen(false)}
+              title={editingService ? `Modifier — ${editingService.titre}` : 'Nouveau service'}
+              footer={
+                <>
+                  <Button variant="outline" size="sm" onClick={() => setServiceModalOpen(false)}>Annuler</Button>
+                  <Button variant="primary" size="sm" onClick={handleSaveService}>
+                    {editingService ? 'Sauvegarder' : 'Créer le service'}
+                  </Button>
+                </>
+              }
+            >
+              <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Titre *</label>
+                  <input value={serviceForm.titre} onChange={e => setServiceForm(f => ({...f, titre: e.target.value}))} className={inputCls} placeholder="Ex: Réparation fuite urgente" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Description * <span className="font-normal text-slate-400">(min 20 car.)</span></label>
+                  <textarea value={serviceForm.description} onChange={e => setServiceForm(f => ({...f, description: e.target.value}))} rows={3} className={cn(inputCls, 'resize-none')} placeholder="Description détaillée du service..." />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Prix (FCFA) *</label>
+                    <input type="number" value={serviceForm.prix} onChange={e => setServiceForm(f => ({...f, prix: e.target.value}))} className={inputCls} placeholder="Ex: 15000" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Zone d'intervention</label>
+                    <input value={serviceForm.zone} onChange={e => setServiceForm(f => ({...f, zone: e.target.value}))} className={inputCls} placeholder="Ex: Yaoundé, Bastos" />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Catégorie *</label>
+                  <select value={serviceForm.categoryId} onChange={e => setServiceForm(f => ({...f, categoryId: e.target.value}))} className={inputCls}>
+                    <option value="">Sélectionner...</option>
+                    {categories.map(c => <option key={c.id} value={c.id}>{c.nom}</option>)}
+                  </select>
+                </div>
+                {!editingService && (
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Prestataire *</label>
+                    <select value={serviceForm.prestataireId} onChange={e => setServiceForm(f => ({...f, prestataireId: e.target.value}))} className={inputCls}>
+                      <option value="">Sélectionner un prestataire...</option>
+                      {prestataires.map(p => <option key={p.id} value={p.id}>{p.prenom} {p.nom} — {p.email}</option>)}
+                    </select>
+                    {prestataires.length === 0 && <p className="text-xs text-amber-500 mt-1">Aucun prestataire actif trouvé</p>}
+                  </div>
+                )}
+                <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-xl">
+                  <div>
+                    <p className="text-sm font-medium text-slate-800 dark:text-slate-200">Disponible immédiatement</p>
+                    <p className="text-xs text-slate-400">Le service sera visible aux clients</p>
+                  </div>
+                  <button type="button" onClick={() => setServiceForm(f => ({...f, disponibilite: !f.disponibilite}))} className="cursor-pointer transition-colors">
+                    {serviceForm.disponibilite
+                      ? <ToggleRight className="w-9 h-9 text-orange-600" />
+                      : <ToggleLeft className="w-9 h-9 text-slate-400" />}
+                  </button>
+                </div>
+              </div>
+            </Modal>
           </div>
         )}
 

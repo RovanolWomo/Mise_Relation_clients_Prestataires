@@ -157,7 +157,10 @@ export function AuthPage({ mode: initial }: { mode: Mode }) {
                     <button
                       key={r.value}
                       type="button"
-                      onClick={() => setRole(r.value)}
+                      onClick={() => {
+                        if (r.value === 'prestataire') { navigate('/inscription/prestataire'); return }
+                        setRole(r.value)
+                      }}
                       className={cn(
                         'flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all duration-200 cursor-pointer text-center active:scale-[0.98]',
                         role === r.value
@@ -174,11 +177,6 @@ export function AuthPage({ mode: initial }: { mode: Mode }) {
                   )
                 })}
               </div>
-              {role === 'prestataire' && (
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 text-center">
-                  Un formulaire KYC sera requis pour valider votre profil
-                </p>
-              )}
             </div>
           )}
 

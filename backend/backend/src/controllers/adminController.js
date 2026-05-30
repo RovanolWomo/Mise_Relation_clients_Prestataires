@@ -201,20 +201,96 @@ const adminDeleteCategory = async (req, res) => {
   } catch (e) { res.status(500).json({ error: 'Erreur serveur' }); }
 };
 
-// GET /api/admin/services/featured
-const getFeaturedServices = async (req, res) => {
+// GET /api/admin/services - liste complète avec filtres
+const adminGetServices = async (req, res) => {
   try {
+    const { search, categoryId, disponible, featured } = req.query;
+    const where = {};
+    if (categoryId) where.categoryId = parseInt(categoryId);
+    if (disponible !== undefined) where.disponibilite = disponible === 'true';
+    if (featured !== undefined) where.featured = featured === 'true';
+    if (search) where.OR = [
+      { titre: { contains: search, mode: 'insensitive' } },
+      { description: { contains: search, mode: 'insensitive' } },
+    ];
+
     const services = await prisma.service.findMany({
+      where,
       include: {
-        prestataire: { select: { id: true, nom: true, prenom: true, avatar: true } },
+        prestataire: { select: { id: true, nom: true, prenom: true, email: true } },
         category: true,
-        reviews: { select: { note: true } },
-        _count: { select: { reviews: true } }
+        _count: { select: { reviews: true } },
       },
-      orderBy: [{ featured: 'desc' }, { reviews: { _count: 'desc' } }],
+      orderBy: [{ featured: 'desc' }, { datePublication: 'desc' }],
     });
     res.json(services);
   } catch (e) { res.status(500).json({ error: 'Erreur serveur' }); }
+};
+
+// POST /api/admin/services - créer un service (pour un prestataire donné)
+const adminCreateService = async (req, res) => {
+  try {
+    const { titre, description, prix, categoryId, prestataireId, zone, disponibilite } = req.body;
+    if (!titre || !description || !prix || !categoryId || !prestataireId) {
+      return res.status(400).json({ error: 'Champs obligatoires : titre, description, prix, categoryId, prestataireId' });
+    }
+    const service = await prisma.service.create({
+      data: {
+        titre,
+        description,
+        prix: parseFloat(prix),
+        categoryId: parseInt(categoryId),
+        prestataireId: parseInt(prestataireId),
+        zone: zone || null,
+        disponibilite: disponibilite !== undefined ? (disponibilite === true || disponibilite === 'true') : true,
+      },
+      include: {
+        prestataire: { select: { id: true, nom: true, prenom: true } },
+        category: true,
+      },
+    });
+    res.status(201).json(service);
+  } catch (e) { console.error(e); res.status(500).json({ error: 'Erreur serveur' }); }
+};
+
+// PUT /api/admin/services/:id - modifier n'importe quel service
+const adminUpdateService = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { titre, description, prix, categoryId, zone, disponibilite, featured } = req.body;
+    const data = {};
+    if (titre !== undefined) data.titre = titre;
+    if (description !== undefined) data.description = description;
+    if (prix !== undefined) data.prix = parseFloat(prix);
+    if (categoryId !== undefined) data.categoryId = parseInt(categoryId);
+    if (zone !== undefined) data.zone = zone;
+    if (disponibilite !== undefined) data.disponibilite = disponibilite === true || disponibilite === 'true';
+    if (featured !== undefined) data.featured = featured === true || featured === 'true';
+
+    const service = await prisma.service.update({
+      where: { id: parseInt(id) },
+      data,
+      include: {
+        prestataire: { select: { id: true, nom: true, prenom: true } },
+        category: true,
+      },
+    });
+    res.json(service);
+  } catch (e) { res.status(500).json({ error: 'Erreur serveur' }); }
+};
+
+// DELETE /api/admin/services/:id
+const adminDeleteService = async (req, res) => {
+  try {
+    await prisma.service.delete({ where: { id: parseInt(req.params.id) } });
+    res.status(204).send();
+  } catch (e) { res.status(500).json({ error: 'Erreur serveur' }); }
+};
+
+// GET /api/admin/services/featured - alias pour compatibilité
+const getFeaturedServices = async (req, res) => {
+  req.query.featured = 'true';
+  return adminGetServices(req, res);
 };
 
 // PATCH /api/admin/services/:id/featured
@@ -251,5 +327,6 @@ const upsertPaymentConfig = async (req, res) => {
 module.exports = {
   getStats, getUsers, getPendingKyc, verifyPrestataire, updateUserStatus, getAllRequests,
   getKycDetail, adminRegisterUser, adminGetCategories, adminCreateCategory, adminUpdateCategory,
-  adminDeleteCategory, getFeaturedServices, toggleFeaturedService, getPaymentConfig, upsertPaymentConfig,
+  adminDeleteCategory, adminGetServices, adminCreateService, adminUpdateService, adminDeleteService,
+  getFeaturedServices, toggleFeaturedService, getPaymentConfig, upsertPaymentConfig,
 };

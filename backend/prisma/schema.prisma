@@ -16,6 +16,7 @@ enum UserRole {
 
 enum RequestStatus {
   EN_ATTENTE
+  ASSIGNEE
   ACCEPTEE
   EN_COURS
   TERMINEE
@@ -49,13 +50,15 @@ model User {
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 
-  prestations     Service[]
-  requests        Request[]      @relation("CustomerRequests")
-  handledRequests Request[]      @relation("ProviderRequests")
-  reviews         Review[]       @relation("ReviewAuthor")
-  receivedReviews Review[]       @relation("ReviewTarget")
-  notifications   Notification[]
-  kycDocuments    KycDocument[]
+  prestations              Service[]
+  requests                 Request[]                 @relation("CustomerRequests")
+  handledRequests          Request[]                 @relation("ProviderRequests")
+  reviews                  Review[]                  @relation("ReviewAuthor")
+  receivedReviews          Review[]                  @relation("ReviewTarget")
+  notifications            Notification[]
+  kycDocuments             KycDocument[]
+  sentMessages             Message[]                 @relation("MessageSender")
+  conversationParticipants ConversationParticipant[]
 }
 
 model Category {
@@ -74,16 +77,16 @@ model Service {
   disponibilite   Boolean  @default(true)
   image           String?
   zone            String?
+  featured        Boolean  @default(false)
   datePublication DateTime @default(now())
 
   prestataireId Int
   prestataire   User     @relation(fields: [prestataireId], references: [id])
 
-  categoryId    Int
-  category      Category @relation(fields: [categoryId], references: [id])
+  categoryId Int
+  category   Category @relation(fields: [categoryId], references: [id])
 
-  reviews       Review[]
-  featured      Boolean  @default(false)
+  reviews Review[]
 }
 
 model Request {
@@ -102,10 +105,12 @@ model Request {
   updatedAt           DateTime      @updatedAt
 
   particulierId Int
-  particulier   User          @relation("CustomerRequests", fields: [particulierId], references: [id])
+  particulier   User  @relation("CustomerRequests", fields: [particulierId], references: [id])
 
   prestataireId Int?
-  prestataire   User?         @relation("ProviderRequests", fields: [prestataireId], references: [id])
+  prestataire   User? @relation("ProviderRequests", fields: [prestataireId], references: [id])
+
+  conversation Conversation?
 }
 
 model Review {
@@ -142,17 +147,49 @@ model KycDocument {
   publicId  String?
   mimeType  String?
   createdAt DateTime @default(now())
-  userId    Int
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  userId Int
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model PaymentConfig {
-  id          Int      @id @default(autoincrement())
-  provider    String   @unique
-  enabled     Boolean  @default(false)
-  merchantId  String?
-  apiKey      String?
-  webhookUrl  String?
-  config      String?
-  updatedAt   DateTime @updatedAt
+  id         Int      @id @default(autoincrement())
+  provider   String   @unique
+  enabled    Boolean  @default(false)
+  merchantId String?
+  apiKey     String?
+  webhookUrl String?
+  config     String?
+  updatedAt  DateTime @updatedAt
+}
+
+model Conversation {
+  id        Int      @id @default(autoincrement())
+  requestId Int?     @unique
+  request   Request? @relation(fields: [requestId], references: [id])
+  createdAt DateTime @default(now())
+
+  messages     Message[]
+  participants ConversationParticipant[]
+}
+
+model ConversationParticipant {
+  id             Int          @id @default(autoincrement())
+  userId         Int
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversationId Int
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, conversationId])
+}
+
+model Message {
+  id             Int          @id @default(autoincrement())
+  content        String
+  read           Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+  conversationId Int
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderId       Int
+  sender         User         @relation("MessageSender", fields: [senderId], references: [id])
 }

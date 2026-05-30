@@ -151,6 +151,42 @@ const updateRequestStatus = async (req, res) => {
   }
 };
 
+// Particulier assigne sa demande à un prestataire spécifique
+const assignRequest = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { prestataireId } = req.body;
+    if (!prestataireId) return res.status(400).json({ error: 'prestataireId requis' });
+
+    const request = await prisma.request.findUnique({ where: { id: parseInt(id) } });
+    if (!request) return res.status(404).json({ error: 'Demande introuvable' });
+    if (request.particulierId !== req.user.id) return res.status(403).json({ error: 'Non autorisé' });
+
+    const updated = await prisma.request.update({
+      where: { id: parseInt(id) },
+      data: { prestataireId: parseInt(prestataireId), statut: 'ASSIGNEE' },
+      include: {
+        prestataire: { select: { id: true, nom: true, prenom: true, avatar: true } },
+        particulier: { select: { id: true, nom: true, prenom: true } },
+      }
+    });
+
+    // Notifier le prestataire
+    await prisma.notification.create({
+      data: {
+        message: `${request.particulierId ? updated.particulier.prenom : 'Un client'} vous a assigné une demande : "${request.titre}"`,
+        type: 'INFO',
+        userId: parseInt(prestataireId),
+      }
+    });
+
+    res.json(updated);
+  } catch (error) {
+    console.error('assignRequest:', error);
+    res.status(500).json({ error: 'Échec de l\'assignation' });
+  }
+};
+
 module.exports = {
   createRequest,
   getCustomerRequests,
@@ -159,4 +195,5 @@ module.exports = {
   getRequestById,
   acceptRequest,
   updateRequestStatus,
+  assignRequest,
 };
