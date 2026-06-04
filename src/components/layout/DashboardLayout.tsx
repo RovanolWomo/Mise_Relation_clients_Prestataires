@@ -267,7 +267,7 @@ export function DashboardLayout({ user, items, children }: DashboardLayoutProps)
               className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors cursor-pointer"
               onClick={() => setOpen(false)}
             >
-              <ProviderAvatar avatar={user.avatar} size="sm" />
+              <UserAvatar nom={user.nom || user.avatar} prenom={user.prenom} avatar={user.avatarUrl} size="sm" />
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 truncate">{user.prenom}</p>
                 <p className="text-xs text-slate-400 capitalize">{user.role}</p>
