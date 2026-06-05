@@ -46,7 +46,7 @@ export function ChatPanel({ conversationId, otherUser, requestTitle, onClose, po
       .catch(() => {})
 
     // Socket connection
-    const socket = io(import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000', {
+    const socket = io('/', {
       auth: { token },
       transports: ['websocket', 'polling'],
     })

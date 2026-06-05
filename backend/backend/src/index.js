@@ -1,6 +1,8 @@
 require('dotenv').config();
 const express = require('express');
 const http = require('http');
+const fs = require('fs');
+const path = require('path');
 const cors = require('cors');
 const { Server } = require('socket.io');
 const setupSocket = require('./socket');
@@ -16,7 +18,7 @@ const chatRoutes         = require('./routes/chatRoutes');
 
 const app    = express();
 const server = http.createServer(app);
-const PORT   = process.env.PORT || 5000;
+const PORT   = process.env.PORT || 0;
 
 const ALLOWED_ORIGINS = [
   'http://localhost:5173',
@@ -61,8 +63,12 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Erreur interne du serveur' });
 });
 
+const PORT_FILE = path.join(__dirname, '../../../.backend-port');
+
 server.listen(PORT, () => {
-  console.log(`🚀 RelConnect API + Socket.io sur http://localhost:${PORT}`);
+  const actualPort = server.address().port;
+  fs.writeFileSync(PORT_FILE, String(actualPort));
+  console.log(`🚀 RelConnect API + Socket.io sur http://localhost:${actualPort}`);
 });
 
 module.exports = app;
